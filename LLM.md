@@ -252,6 +252,34 @@ make e2e-test
 
 14. **BIP-340/Taproot signature format**: FROST signing produces BIP-340 compatible signatures (64 bytes: R_x || s). The `taproot.Signature` type is already in this format, so no additional conversion is needed in `publishResult()`.
 
+### LSS Protocol Issues (Fixed Jan 2026)
+
+15. **LSS config serialization (CRITICAL - FIXED)**: Similar to FROST, `lssConfig.Config` contains crypto types (`curve.Scalar`, `curve.Point`) that **do NOT have JSON marshalers**. Fixed by implementing `MarshalLSSConfig()` and `UnmarshalLSSConfig()` in `lss_config_marshal.go` using CBOR serialization.
+
+16. **LSS capabilities vs CGGMP21**: LSS supports dynamic resharing (change T-of-N without reconstructing keys), threshold changes, and adding/removing participants. CGGMP21 only supports refresh (same committee). Both produce valid ECDSA signatures.
+
+### Security Audit Findings (Jan 2026)
+
+17. **Message authentication**: Protocol messages between nodes are not signed. Ed25519 signing code exists but is disabled. Consider re-enabling for production deployments.
+
+18. **Deduplication map cleanup**: The `processing` map used for deduplication grows unbounded. Recommend adding TTL-based cleanup for long-running sessions.
+
+19. **Protocol timeouts**: No timeout enforcement on protocol handlers. Recommend adding context with timeout to prevent indefinite hangs from stalling parties.
+
+## 🌐 Blockchain Support
+
+| Blockchain | Support | Curve | Protocol |
+|------------|---------|-------|----------|
+| Bitcoin (Legacy/SegWit) | ✅ Full | secp256k1 | CGGMP21/LSS |
+| Bitcoin (Taproot) | ✅ Full | secp256k1 | FROST |
+| Ethereum/EVM | ✅ Full | secp256k1 | CGGMP21/LSS |
+| XRPL (XRP Ledger) | ✅ Full | secp256k1 | CGGMP21/LSS |
+| Lux Network | ✅ Full | secp256k1 | CGGMP21/LSS |
+| Solana | ⚠️ Partial | Ed25519 | FROST (Taproot mode) |
+| TON | ⚠️ Partial | Ed25519 | FROST (Taproot mode) |
+
+**Note**: Solana/TON use Ed25519 natively but our FROST implementation produces Taproot/BIP-340 signatures. Native Ed25519 support requires implementing the Ed25519 FROST variant.
+
 ## 🎯 Best Practices
 
 1. **Always backup** BadgerDB before major operations
