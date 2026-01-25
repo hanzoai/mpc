@@ -346,8 +346,8 @@ func (s *lssKeygenSession) ProcessOutboundMessage() {
 
 // saveConfig saves the LSS config to storage
 func (s *lssKeygenSession) saveConfig() error {
-	// Serialize the config
-	configData, err := json.Marshal(s.config)
+	// Serialize the config using CBOR (not JSON) to preserve curve types
+	configData, err := MarshalLSSConfig(s.config)
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}

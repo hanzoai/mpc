@@ -480,8 +480,8 @@ func (s *cggmp21ReshareSession) publishResult() {
 		return
 	}
 
-	// Save the new key share
-	shareBytes, err := json.Marshal(s.lssConfig)
+	// Save the new key share using CBOR (not JSON) to preserve curve types
+	shareBytes, err := MarshalLSSConfig(s.lssConfig)
 	if err != nil {
 		s.logger.Error().Err(err).Msg("[LSS-RESHARE] Failed to marshal key share")
 		s.externalFinishChan <- ""
@@ -537,9 +537,9 @@ func (s *cggmp21ReshareSession) loadLSSConfig(walletID string) (*lssConfig.Confi
 		return nil, fmt.Errorf("failed to get key share: %w", err)
 	}
 
-	// Deserialize to LSS config
-	config := lss.EmptyConfig(curve.Secp256k1{})
-	if err := json.Unmarshal(keyShareData, config); err != nil {
+	// Deserialize to LSS config using CBOR (not JSON) to preserve curve types
+	config, err := UnmarshalLSSConfig(keyShareData)
+	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal as LSS config: %w", err)
 	}
 

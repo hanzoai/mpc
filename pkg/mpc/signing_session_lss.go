@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"sync"
 
@@ -12,7 +11,6 @@ import (
 	"github.com/nats-io/nats.go"
 
 	"github.com/luxfi/threshold/pkg/ecdsa"
-	"github.com/luxfi/threshold/pkg/math/curve"
 	"github.com/luxfi/threshold/pkg/party"
 	"github.com/luxfi/threshold/pkg/pool"
 	"github.com/luxfi/threshold/pkg/protocol"
@@ -67,9 +65,9 @@ func newLSSSigningSession(
 		return nil, fmt.Errorf("failed to get key share: %w", err)
 	}
 
-	// Create empty config with the correct group - REQUIRED for unmarshalling
-	config := lss.EmptyConfig(curve.Secp256k1{})
-	if err := json.Unmarshal(shareBytes, config); err != nil {
+	// Unmarshal config using CBOR (not JSON) to preserve curve types
+	config, err := UnmarshalLSSConfig(shareBytes)
+	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal key share: %w", err)
 	}
 
