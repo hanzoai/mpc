@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/luxfi/fhe"
 	"github.com/luxfi/threshold/pkg/party"
 
 	"github.com/hanzoai/mpc/pkg/identity"
@@ -363,6 +364,81 @@ func (p *Node) CreateReshareSession(
 	default:
 		return nil, fmt.Errorf("unsupported session type for reshare: %v", sessionType)
 	}
+}
+
+// CreateTFHEKeyGenSession creates a threshold FHE key generation session
+// TFHE enables computation on encrypted data using lattice-based cryptography
+func (p *Node) CreateTFHEKeyGenSession(
+	walletID string,
+	threshold int,
+	resultQueue messaging.MessageQueue,
+) (*tfheKeygenSession, error) {
+	if !p.peerRegistry.ArePeersReady() {
+		return nil, fmt.Errorf(
+			"peers are not ready yet. ready: %d, expected: %d",
+			p.peerRegistry.GetReadyPeersCount(),
+			len(p.peerIDs)+1,
+		)
+	}
+
+	readyPeerIDs := p.peerRegistry.GetReadyPeersIncludeSelf()
+	// TFHE uses version 0 for raw party IDs
+	selfPartyID, allPartyIDs := p.generatePartyIDs(PurposeKeygen, readyPeerIDs, 0)
+
+	// Use default FHE parameters (128-bit security)
+	params, err := fhe.NewParametersFromLiteral(fhe.PN10QP27)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create FHE parameters: %w", err)
+	}
+
+	session := newTFHEKeygenSession(
+		walletID,
+		p.pubSub,
+		selfPartyID,
+		allPartyIDs,
+		threshold,
+		params,
+		p.kvstore,
+		p.keyinfoStore,
+		resultQueue,
+		p.identityStore,
+	)
+
+	return session, nil
+}
+
+// CreateTFHEComputeSession creates a session for threshold FHE computation
+// Requires a wallet that was created with CreateTFHEKeyGenSession
+func (p *Node) CreateTFHEComputeSession(
+	sessionID string,
+	walletID string,
+	participantPeerIDs []string,
+	resultQueue messaging.MessageQueue,
+) (TFHESession, error) {
+	// Check if this node is in the participant list
+	if !contains(participantPeerIDs, p.nodeID) {
+		return nil, ErrNotInParticipantList
+	}
+
+	// Generate party IDs for participants
+	selfPartyID, participantPartyIDs := p.generatePartyIDs(PurposeKeygen, participantPeerIDs, 0)
+
+	session, err := newTFHEComputeSession(
+		sessionID,
+		walletID,
+		p.pubSub,
+		selfPartyID,
+		participantPartyIDs,
+		p.kvstore,
+		p.keyinfoStore,
+		resultQueue,
+		p.identityStore,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return session, nil
 }
 
 func contains(slice []string, item string) bool {
