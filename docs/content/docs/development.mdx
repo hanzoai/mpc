@@ -1,0 +1,71 @@
+---
+title: Development
+description: Development guide
+---
+
+# Development
+
+Guide for developing and contributing to Lux MPC.
+
+## Prerequisites
+
+- Go 1.21+
+- Docker (for integration tests)
+- Make
+
+## Building
+
+```bash
+git clone https://github.com/luxfi/mpc
+cd mpc
+
+# Build all binaries
+go build ./cmd/lux-mpc
+go build ./cmd/lux-mpc-cli
+
+# Run tests
+go test ./... -v
+
+# Run benchmarks
+go test -bench=. ./e2e/
+```
+
+## Project Structure
+
+```
+mpc/
+├── cmd/
+│   ├── lux-mpc/          # MPC node binary
+│   └── lux-mpc-cli/      # CLI tool
+├── pkg/
+│   ├── event/            # Protocol events
+│   ├── messaging/        # NATS messaging
+│   ├── node/             # Node implementation
+│   ├── storage/          # BadgerDB storage
+│   ├── threshold/        # Unified threshold API
+│   └── types/            # Common types
+├── e2e/                  # End-to-end tests
+├── deployments/          # Docker configs
+└── docs/                 # Documentation
+```
+
+## Running Tests
+
+```bash
+# Unit tests
+go test ./pkg/...
+
+# E2E tests (requires Docker)
+docker compose -f deployments/bridge/docker-compose.yaml up -d
+go test ./e2e/... -v
+
+# Benchmarks
+go test -bench=BenchmarkProtocol ./e2e/
+```
+
+## Code Style
+
+- Follow standard Go conventions
+- Run `gofmt` and `golint`
+- Add tests for new features
+- Document exported functions

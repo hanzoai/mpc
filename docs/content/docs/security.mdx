@@ -1,0 +1,344 @@
+---
+title: Security Model
+description: Comprehensive security analysis of the Lux MPC system
+---
+
+# Security Model
+
+## Overview
+
+Lux MPC's security model is built on rigorous cryptographic foundations and defense-in-depth principles. This document provides a comprehensive analysis of the security properties, threat model, and protective measures implemented in the system.
+
+## Cryptographic Foundations
+
+### Assumptions
+
+The security of Lux MPC relies on:
+
+1. **Discrete Logarithm Problem (DLP)**: Hardness in elliptic curve groups
+2. **Strong RSA Assumption**: For Paillier encryption in CGGMP21
+3. **Random Oracle Model**: For hash functions and commitments
+4. **Honest Majority**: At least t parties behave honestly
+
+### Security Parameters
+
+- **Elliptic Curves**:
+  - secp256k1 (256-bit security for ECDSA)
+  - Ed25519 (128-bit security for EdDSA)
+- **Symmetric Encryption**: AES-256-GCM
+- **Hash Functions**: SHA-256, SHA-512
+- **Key Derivation**: Argon2id with recommended parameters
+
+## Threat Model
+
+### Adversary Capabilities
+
+We consider adversaries who can:
+
+1. **Compromise up to t-1 nodes** (threshold assumption)
+2. **Monitor network traffic** (passive network adversary)
+3. **Delay or reorder messages** (asynchronous network)
+4. **Access storage of compromised nodes**
+5. **Perform computational attacks** (within polynomial bounds)
+
+### Out of Scope
+
+The following are explicitly out of scope:
+
+1. **Compromising t or more nodes** (breaks threshold assumption)
+2. **Physical attacks** on hardware
+3. **Zero-day exploits** in dependencies
+4. **Quantum computing attacks** (future consideration)
+
+## Security Properties
+
+### 1. Key Security
+
+**Property**: The private key is never reconstructed in any single location.
+
+**Implementation**:
+- Shamir secret sharing with threshold t
+- Shares stored encrypted with unique node keys
+- Key material never in plaintext memory
+
+**Verification**:
+```go
+// Key shares are generated but never combined
+shares := GenerateShares(privKey, t, n)
+// privKey is immediately destroyed
+privKey.Clear()
+```
+
+### 2. Unforgeability
+
+**Property**: Valid signatures can only be produced by t or more authorized parties.
+
+**Guarantees**:
+- Threshold signature schemes (CGGMP21, FROST)
+- Zero-knowledge proofs of correct computation
+- Commitment schemes prevent manipulation
+
+### 3. Privacy
+
+**Property**: No information about the private key leaks from fewer than t shares.
+
+**Mechanisms**:
+- Information-theoretic security of secret sharing
+- Encrypted point-to-point communication
+- Secure multi-party computation protocols
+
+### 4. Availability
+
+**Property**: System remains operational with up to n-t node failures.
+
+**Design**:
+- Redundant share distribution
+- Automatic failover mechanisms
+- State replication across nodes
+
+### 5. Accountability
+
+**Property**: Malicious behavior is detectable and attributable.
+
+**Features**:
+- Signed messages with Ed25519
+- Verifiable secret sharing (VSS)
+- Audit logs with tamper detection
+
+## Defense Mechanisms
+
+### Network Security
+
+#### TLS Encryption
+All network communication uses TLS 1.3 with:
+- Forward secrecy (ECDHE)
+- Authenticated encryption (AES-256-GCM)
+- Certificate pinning for known nodes
+
+#### Message Authentication
+Every protocol message includes:
+```go
+type AuthenticatedMessage struct {
+    Payload   []byte
+    Sender    NodeID
+    Timestamp int64
+    Nonce     []byte
+    Signature []byte // Ed25519 signature
+}
+```
+
+#### DDoS Protection
+- Rate limiting per node
+- Proof-of-work for session initiation
+- Resource quotas per operation
+
+### Storage Security
+
+#### Encryption at Rest
+```go
+// All key material encrypted before storage
+encryptedShare := AES256GCM.Encrypt(
+    share,
+    deriveKey(password, salt),
+    nonce,
+)
+badgerDB.Set(keyID, encryptedShare)
+```
+
+#### Key Derivation
+```go
+// Argon2id for password-based encryption
+key := argon2.IDKey(
+    password,
+    salt,
+    time:    3,      // iterations
+    memory:  64*1024, // 64 MB
+    threads: 4,
+    keyLen:  32,
+)
+```
+
+#### Backup Security
+- Encrypted backups with separate keys
+- Versioned backups with integrity checks
+- Secure deletion of old backups
+
+### Protocol Security
+
+#### Commitment Schemes
+Prevent equivocation through binding commitments:
+```go
+commitment := SHA256(value || nonce)
+// Broadcast commitment first
+Broadcast(commitment)
+// Reveal value and nonce later
+Reveal(value, nonce)
+```
+
+#### Zero-Knowledge Proofs
+Prove correct computation without revealing secrets:
+- Schnorr proofs for discrete log knowledge
+- Range proofs for Paillier encryption
+- Consistency proofs for share generation
+
+#### Verifiable Secret Sharing
+```go
+// Feldman VSS for verifiable shares
+coefficients := GeneratePolynomial(secret, threshold)
+commitments := ComputeCommitments(coefficients)
+shares := EvaluatePolynomial(coefficients, parties)
+// Anyone can verify: share * G == Σ(commitments[j] * i^j)
+```
+
+## Attack Scenarios & Mitigations
+
+### 1. Key Extraction Attack
+
+**Scenario**: Attacker compromises node and attempts to extract key share.
+
+**Mitigations**:
+- Hardware security modules (HSM) support
+- Memory protection (mlock, secure erasure)
+- Encrypted swap prevention
+- Rate-limited access to signing operations
+
+### 2. Network Eavesdropping
+
+**Scenario**: Attacker monitors network to learn protocol messages.
+
+**Mitigations**:
+- TLS 1.3 for all communications
+- Perfect forward secrecy
+- No sensitive data in plaintext
+- Ephemeral session keys
+
+### 3. Replay Attacks
+
+**Scenario**: Attacker replays old protocol messages.
+
+**Mitigations**:
+- Monotonic session counters
+- Time-based nonces
+- Message expiration (5 minute window)
+- Session binding
+
+### 4. Denial of Service
+
+**Scenario**: Attacker floods nodes with requests.
+
+**Mitigations**:
+- Rate limiting (10 ops/second default)
+- Resource quotas
+- Proof-of-work challenges
+- Blacklisting of malicious nodes
+
+### 5. Sybil Attacks
+
+**Scenario**: Attacker creates multiple fake identities.
+
+**Mitigations**:
+- Authenticated node registration
+- Proof-of-stake requirements
+- Reputation system
+- Manual approval for production
+
+## Compliance & Standards
+
+### Cryptographic Standards
+- **FIPS 140-2**: Cryptographic module validation
+- **NIST SP 800-57**: Key management recommendations
+- **RFC 8032**: EdDSA signature scheme
+- **SEC 2**: Elliptic curve standards
+
+### Security Frameworks
+- **SOC 2 Type II**: Security controls audit
+- **ISO 27001**: Information security management
+- **PCI DSS**: Payment card industry standards
+- **GDPR**: Data protection compliance
+
+## Security Monitoring
+
+### Metrics & Alerts
+
+Monitor these security indicators:
+```yaml
+alerts:
+  - name: excessive_signing_failures
+    threshold: 5 failures in 1 minute
+
+  - name: unusual_message_volume
+    threshold: 10x normal rate
+
+  - name: node_compromise_detection
+    indicators:
+      - invalid_signatures
+      - protocol_violations
+      - timing_anomalies
+```
+
+### Audit Logging
+
+Comprehensive logging of security events:
+```go
+type SecurityEvent struct {
+    Timestamp   time.Time
+    EventType   string
+    NodeID      string
+    SessionID   string
+    Details     map[string]interface{}
+    Signature   []byte
+}
+```
+
+### Incident Response
+
+1. **Detection**: Automated anomaly detection
+2. **Containment**: Automatic node isolation
+3. **Investigation**: Forensic log analysis
+4. **Recovery**: Share redistribution if needed
+5. **Lessons Learned**: Protocol improvements
+
+## Security Best Practices
+
+### Deployment
+
+1. **Use HSMs** for production key storage
+2. **Enable all security features** by default
+3. **Regular security audits** (quarterly)
+4. **Penetration testing** before major releases
+5. **Security training** for operators
+
+### Operations
+
+1. **Key rotation** every 30-90 days
+2. **Regular backups** with encryption
+3. **Monitor security metrics** continuously
+4. **Update dependencies** promptly
+5. **Practice incident response** procedures
+
+### Development
+
+1. **Security review** for all changes
+2. **Static analysis** tools (gosec, etc.)
+3. **Fuzzing** for protocol implementations
+4. **Formal verification** for critical paths
+5. **Bug bounty program** for vulnerabilities
+
+## Quantum Resistance Roadmap
+
+While current implementation uses classical cryptography, we're preparing for post-quantum threats:
+
+1. **Phase 1**: Research quantum-resistant signatures (Dilithium, SPHINCS+)
+2. **Phase 2**: Hybrid classical-quantum schemes
+3. **Phase 3**: Full quantum-resistant implementation
+4. **Phase 4**: Migration tools for existing deployments
+
+## Security Disclosure
+
+Report security vulnerabilities to: security@lux.network
+
+We follow responsible disclosure with:
+- 90-day disclosure timeline
+- Bug bounty rewards
+- Security advisories
+- CVE assignments when applicable

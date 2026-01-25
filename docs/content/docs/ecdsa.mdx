@@ -1,0 +1,58 @@
+---
+title: ECDSA (CGGMP21)
+description: CGGMP21 protocol for ECDSA threshold signatures
+---
+
+# ECDSA (CGGMP21)
+
+The CGGMP21 protocol provides UC-secure ECDSA threshold signatures on secp256k1.
+
+## Key Generation
+
+```go
+import (
+    "github.com/luxfi/mpc/pkg/threshold"
+)
+
+api := threshold.NewUnifiedThresholdAPI()
+defer api.Close()
+
+parties := []string{"alice", "bob", "charlie"}
+threshold := 1 // t+1 = 2 parties needed
+
+party, err := api.KeyGen(threshold.SchemeECDSA, "alice", parties, threshold)
+if err != nil {
+    log.Fatal(err)
+}
+
+fmt.Printf("Public Key: %x\n", party.PublicKey())
+```
+
+## Signing
+
+```go
+messageHash := sha256.Sum256([]byte("Hello, World!"))
+
+signature, err := party.Sign(messageHash[:])
+if err != nil {
+    log.Fatal(err)
+}
+
+fmt.Printf("Signature: %x\n", signature)
+```
+
+## Verification
+
+```go
+import "github.com/luxfi/crypto/ecdsa"
+
+valid := ecdsa.Verify(publicKey, messageHash[:], signature)
+fmt.Printf("Valid: %v\n", valid)
+```
+
+## Networks
+
+ECDSA is used for:
+- **Bitcoin** - P2PKH, P2WPKH addresses
+- **Ethereum** - EOA accounts
+- **Lux** - C-Chain accounts

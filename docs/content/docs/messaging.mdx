@@ -1,0 +1,44 @@
+---
+title: Messaging
+description: NATS-based messaging system
+---
+
+# Messaging
+
+Lux MPC uses NATS JetStream for reliable messaging between nodes.
+
+## Configuration
+
+```yaml
+messaging:
+  nats_url: nats://localhost:4222
+  cluster_id: mpc-cluster
+  timeout: 30s
+```
+
+## Topics
+
+| Topic Pattern | Purpose |
+|---------------|---------|
+| `mpc.keygen.<session>` | Key generation messages |
+| `mpc.sign.<session>` | Signing messages |
+| `mpc.party.<id>` | Direct party messages |
+| `mpc.broadcast.<type>` | Broadcast messages |
+
+## Message Format
+
+```go
+type Message struct {
+    SessionID string
+    From      string
+    To        string
+    Round     int
+    Payload   []byte
+}
+```
+
+## Reliability
+
+- **JetStream persistence**: Messages survive restarts
+- **Acknowledgments**: Guaranteed delivery
+- **Replay**: Recover from failures

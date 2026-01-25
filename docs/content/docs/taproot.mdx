@@ -1,0 +1,51 @@
+---
+title: Taproot
+description: Bitcoin Taproot threshold signatures
+---
+
+# Taproot
+
+Taproot threshold signatures for Bitcoin BIP-340.
+
+## Key Generation
+
+```go
+import (
+    "github.com/luxfi/mpc/pkg/threshold"
+)
+
+api := threshold.NewUnifiedThresholdAPI()
+defer api.Close()
+
+parties := []string{"alice", "bob", "charlie"}
+threshold := 1
+
+party, err := api.KeyGen(threshold.SchemeTaproot, "alice", parties, threshold)
+if err != nil {
+    log.Fatal(err)
+}
+
+fmt.Printf("Taproot Public Key: %x\n", party.PublicKey())
+```
+
+## Signing
+
+```go
+// BIP-340 tagged hash
+message := taprootHash("TapSighash", txData)
+
+signature, err := party.Sign(message)
+if err != nil {
+    log.Fatal(err)
+}
+
+fmt.Printf("Schnorr Signature: %x\n", signature)
+```
+
+## Bitcoin Integration
+
+```go
+// Generate Taproot address
+taprootAddr := btcutil.NewAddressTaproot(party.PublicKey(), &chaincfg.MainNetParams)
+fmt.Printf("Address: %s\n", taprootAddr.EncodeAddress())
+```

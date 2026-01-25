@@ -1,0 +1,106 @@
+---
+title: Protocols
+description: Threshold signature protocols - CGGMP21, FROST, and Taproot
+---
+
+# Protocols
+
+Lux MPC implements three threshold signature protocols optimized for different use cases.
+
+## CGGMP21 (ECDSA)
+
+CGGMP21 is the state-of-the-art protocol for ECDSA threshold signatures, published in 2021.
+
+### Features
+
+- **UC-secure**: Universally composable security
+- **Identifiable abort**: Detect malicious parties
+- **Efficient resharing**: Add/remove parties without regenerating keys
+
+### Phases
+
+1. **Key Generation** (5 rounds)
+   - Generate Paillier key pairs
+   - Commit to secret shares
+   - Verify commitments
+   - Compute public key
+
+2. **Signing** (4 rounds)
+   - Generate nonces
+   - Compute partial signatures
+   - Aggregate signature
+
+### Use Cases
+
+- Bitcoin (legacy, segwit)
+- Ethereum and EVM chains
+- Lux network
+
+## FROST (EdDSA)
+
+FROST (Flexible Round-Optimized Schnorr Threshold) is optimized for Schnorr signatures on ed25519.
+
+### Features
+
+- **2-round signing**: Minimal latency
+- **O(n) communication**: Linear scaling
+- **Robust key generation**: Single-round with DKG
+
+### Phases
+
+1. **Key Generation** (2 rounds)
+   - Commit to polynomial
+   - Share distribution
+
+2. **Signing** (2 rounds)
+   - Nonce commitment
+   - Signature share
+
+### Use Cases
+
+- XRPL (XRP Ledger)
+- Solana
+- TON
+
+## Taproot
+
+Taproot protocol for Bitcoin BIP-340 Schnorr signatures.
+
+### Features
+
+- **Bitcoin native**: Full Taproot support
+- **Key path spending**: Efficient single-signature appearance
+- **Script path**: Complex spending conditions
+
+### Use Cases
+
+- Bitcoin Taproot addresses
+- Lightning Network
+
+## Protocol Comparison
+
+| Aspect | CGGMP21 | FROST | Taproot |
+|--------|---------|-------|---------|
+| Curve | secp256k1 | ed25519 | secp256k1 |
+| Signature | ECDSA | Schnorr | Schnorr |
+| KeyGen Rounds | 5 | 2 | 2 |
+| Sign Rounds | 4 | 2 | 2 |
+| Communication | O(n²) | O(n) | O(n) |
+| Security | UC | UC | UC |
+
+## Selecting a Protocol
+
+```go
+import "github.com/luxfi/mpc/pkg/threshold"
+
+api := threshold.NewUnifiedThresholdAPI()
+
+// ECDSA for Bitcoin/Ethereum
+party, _ := api.KeyGen(threshold.SchemeECDSA, "party1", parties, threshold)
+
+// EdDSA for XRPL/Solana
+party, _ := api.KeyGen(threshold.SchemeEdDSA, "party1", parties, threshold)
+
+// Taproot for Bitcoin
+party, _ := api.KeyGen(threshold.SchemeTaproot, "party1", parties, threshold)
+```

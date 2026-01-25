@@ -1,0 +1,84 @@
+---
+title: API Reference
+description: Go API reference
+---
+
+# API Reference
+
+## Package threshold
+
+```go
+import "github.com/luxfi/mpc/pkg/threshold"
+```
+
+### UnifiedThresholdAPI
+
+```go
+type UnifiedThresholdAPI struct {
+    // ...
+}
+
+func NewUnifiedThresholdAPI() *UnifiedThresholdAPI
+func (api *UnifiedThresholdAPI) Close()
+func (api *UnifiedThresholdAPI) KeyGen(scheme Scheme, partyID string, parties []string, threshold int) (Party, error)
+func (api *UnifiedThresholdAPI) GetSupportedSchemes() []Scheme
+func (api *UnifiedThresholdAPI) IsSchemeSupported(scheme Scheme) bool
+```
+
+### Scheme
+
+```go
+type Scheme string
+
+const (
+    SchemeECDSA   Scheme = "ecdsa"
+    SchemeEdDSA   Scheme = "eddsa"
+    SchemeTaproot Scheme = "taproot"
+)
+```
+
+### Party
+
+```go
+type Party interface {
+    ID() string
+    PublicKey() []byte
+    Sign(message []byte) ([]byte, error)
+}
+```
+
+## Package types
+
+```go
+import "github.com/luxfi/mpc/pkg/types"
+```
+
+### Network
+
+```go
+type Network string
+
+const (
+    NetworkXRPL     Network = "xrpl"
+    NetworkBitcoin  Network = "bitcoin"
+    NetworkEthereum Network = "ethereum"
+    NetworkSolana   Network = "solana"
+    NetworkLux      Network = "lux"
+    NetworkTON      Network = "ton"
+)
+```
+
+### KeyType
+
+```go
+type KeyType string
+
+const (
+    KeyTypeECDSA   KeyType = "ecdsa"
+    KeyTypeEdDSA   KeyType = "eddsa"
+    KeyTypeTaproot KeyType = "taproot"
+)
+
+func GetNetworkKeyType(network Network) KeyType
+func IsNetworkSupported(network Network) bool
+```

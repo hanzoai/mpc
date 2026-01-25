@@ -1,0 +1,70 @@
+---
+title: CLI Reference
+description: Command line interface reference
+---
+
+# CLI Reference
+
+The `lux-mpc-cli` provides commands for interacting with MPC nodes.
+
+## Global Flags
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--nats-url` | NATS server URL | `nats://localhost:4222` |
+| `--timeout` | Operation timeout | `60s` |
+| `--log-level` | Log verbosity | `info` |
+
+## Commands
+
+### keygen
+
+Generate a new threshold key.
+
+```bash
+lux-mpc-cli keygen \
+  --parties=node0,node1,node2 \
+  --threshold=1 \
+  --protocol=ecdsa \
+  --network=ethereum
+```
+
+| Flag | Description | Required |
+|------|-------------|----------|
+| `--parties` | Comma-separated party IDs | Yes |
+| `--threshold` | Signing threshold (t) | Yes |
+| `--protocol` | Protocol (ecdsa, eddsa, taproot) | Yes |
+| `--network` | Target network | No |
+
+### sign
+
+Sign a message with threshold key.
+
+```bash
+lux-mpc-cli sign \
+  --key-id=abc123 \
+  --message=0x... \
+  --parties=node0,node1
+```
+
+| Flag | Description | Required |
+|------|-------------|----------|
+| `--key-id` | Key identifier | Yes |
+| `--message` | Hex-encoded message | Yes |
+| `--parties` | Signing parties | Yes |
+
+### list-keys
+
+List all keys on a node.
+
+```bash
+lux-mpc-cli list-keys --node=node0
+```
+
+### export-pubkey
+
+Export public key for a key ID.
+
+```bash
+lux-mpc-cli export-pubkey --key-id=abc123
+```

@@ -1,0 +1,11 @@
+badger_password: 8tQvZII41zEOrxREX6SvZcIPuEXUj0Su
+consul:
+  address: localhost:8501
+db_path: ./test_db
+environment: development
+event_initiator_pubkey: 9106f6ecbde008f3a7b3bec8769e3d3d9fccb4912ec6762bcf399751395dc242
+max_concurrent_keygen: 1
+mpc_threshold: 1
+mpc_version: 1.0.0
+nats:
+  url: nats://localhost:4223 

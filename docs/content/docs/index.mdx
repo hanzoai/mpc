@@ -1,0 +1,165 @@
+---
+title: Introduction
+description: Multi-Party Computation for threshold signatures - ECDSA, EdDSA, and Taproot
+---
+
+# Lux MPC
+
+Multi-Party Computation (MPC) threshold signature service supporting **ECDSA**, **EdDSA**, and **Taproot** protocols.
+
+## Overview
+
+Lux MPC is a standalone threshold signature tool for users who want complete control over their key shards. It implements industry-standard MPC protocols:
+
+- **CGGMP21** - State-of-the-art ECDSA threshold signatures (secp256k1)
+- **FROST** - Flexible Round-Optimized Schnorr Threshold signatures (ed25519)
+- **Taproot** - Bitcoin Taproot-compatible Schnorr signatures
+
+## Key Features
+
+### Threshold Security
+- **t-of-n Threshold**: Require t+1 parties to sign
+- **No Single Point of Failure**: Private key never exists in one place
+- **Byzantine Fault Tolerance**: Resilient to malicious parties
+
+### Protocol Support
+
+| Protocol | Curve | Use Cases |
+|----------|-------|-----------|
+| CGGMP21 (ECDSA) | secp256k1 | Bitcoin, Ethereum, Lux |
+| FROST (EdDSA) | ed25519 | Solana, XRPL, TON |
+| Taproot | secp256k1 | Bitcoin Taproot |
+
+### Network Support
+
+- **XRPL** - XRP Ledger (mainnet, testnet, devnet)
+- **Bitcoin** - Native segwit and Taproot
+- **Ethereum** - EVM-compatible chains
+- **Solana** - SPL token support
+- **Lux** - Native integration
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    LUX MPC ARCHITECTURE                     │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  MPC Node Layer                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │  Node 0        Node 1        Node 2       ...       │   │
+│  │  (Shard 0)     (Shard 1)     (Shard 2)              │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                           ↓                                 │
+│  Protocol Layer                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │  CGGMP21 (ECDSA) | FROST (EdDSA) | Taproot          │   │
+│  │  Key Generation  | Signing       | Resharing        │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                           ↓                                 │
+│  Messaging Layer                                            │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │  NATS JetStream | Point-to-Point | Broadcast        │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                           ↓                                 │
+│  Storage Layer                                              │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │  BadgerDB | Encrypted Key Shares | Audit Log        │   │
+│  └─────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Quick Start
+
+### Installation
+
+```bash
+# From source
+git clone https://github.com/luxfi/mpc
+cd mpc
+go build ./cmd/lux-mpc
+go build ./cmd/lux-mpc-cli
+
+# From release
+curl -L https://github.com/luxfi/mpc/releases/latest/download/lux-mpc-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m) -o lux-mpc
+chmod +x lux-mpc
+```
+
+### Running a Node
+
+```bash
+# Start MPC node
+./lux-mpc --node-id=node0 \
+  --nats-url=nats://localhost:4222 \
+  --db-path=/data/mpc \
+  --http-port=8080
+
+# Or use Docker Compose
+docker compose -f deployments/bridge/docker-compose.yaml up
+```
+
+### Key Generation
+
+```bash
+# Generate a new threshold key (2-of-3)
+./lux-mpc-cli keygen \
+  --parties=node0,node1,node2 \
+  --threshold=1 \
+  --protocol=ecdsa
+
+# Output: Public key and key ID
+```
+
+### Signing
+
+```bash
+# Sign a message
+./lux-mpc-cli sign \
+  --key-id=<key-id> \
+  --message=<hex-message> \
+  --parties=node0,node1
+```
+
+## Protocol Comparison
+
+| Feature | CGGMP21 (ECDSA) | FROST (EdDSA) |
+|---------|-----------------|---------------|
+| Rounds (KeyGen) | 5 | 2 |
+| Rounds (Sign) | 4 | 2 |
+| Communication | O(n²) | O(n) |
+| Security | UC-secure | UC-secure |
+| Curve | secp256k1 | ed25519 |
+
+## Performance
+
+Benchmarks on Apple M2 (3 parties, threshold 1):
+
+| Operation | ECDSA | EdDSA | Taproot |
+|-----------|-------|-------|---------|
+| KeyGen | ~2s | ~100ms | ~100ms |
+| Sign | ~500ms | ~50ms | ~50ms |
+
+## Documentation
+
+- [Getting Started](/docs/getting-started) - Installation and first steps
+- [Protocols](/docs/protocols) - CGGMP21, FROST, Taproot details
+- [Architecture](/docs/architecture) - System design
+- [CLI Reference](/docs/cli) - Command line interface
+- [API Reference](/docs/api) - Go API documentation
+- [Deployment](/docs/deployment) - Production setup
+
+## Related Projects
+
+- **T-Chain** - Threshold VM in Lux node for on-chain MPC
+- **B-Chain** - Bridge VM for cross-chain operations
+- **Threshold** - Low-level threshold cryptography library
+
+## License
+
+MIT - See LICENSE file
+
+## Support
+
+- [GitHub Issues](https://github.com/luxfi/mpc/issues)
+- [Documentation](https://mpc.lux.network)
+- Email: devs@lux.network

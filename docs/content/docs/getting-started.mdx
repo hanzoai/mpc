@@ -1,0 +1,125 @@
+---
+title: Getting Started
+description: Install and run your first MPC node
+---
+
+# Getting Started
+
+This guide walks you through setting up a Lux MPC network and performing your first threshold signature.
+
+## Prerequisites
+
+- Go 1.21 or later
+- Docker and Docker Compose (optional)
+- NATS server for messaging
+
+## Installation
+
+### From Source
+
+```bash
+git clone https://github.com/luxfi/mpc
+cd mpc
+go build ./cmd/lux-mpc
+go build ./cmd/lux-mpc-cli
+```
+
+### From Release
+
+```bash
+# Download latest release
+curl -L https://github.com/luxfi/mpc/releases/latest/download/lux-mpc-darwin-arm64 -o lux-mpc
+curl -L https://github.com/luxfi/mpc/releases/latest/download/lux-mpc-cli-darwin-arm64 -o lux-mpc-cli
+chmod +x lux-mpc lux-mpc-cli
+```
+
+## Quick Start with Docker
+
+The fastest way to run a local MPC network:
+
+```bash
+cd deployments/bridge
+docker compose up -d
+```
+
+This starts:
+- 3 MPC nodes (lux-mpc-0, lux-mpc-1, lux-mpc-2)
+- NATS messaging server
+- Consul for service discovery
+
+## Manual Setup
+
+### 1. Start NATS
+
+```bash
+docker run -d --name nats -p 4222:4222 -p 8222:8222 nats:2.10-alpine -js -m 8222
+```
+
+### 2. Start MPC Nodes
+
+```bash
+# Terminal 1 - Node 0
+./lux-mpc --node-id=node0 --nats-url=nats://localhost:4222 --http-port=8080
+
+# Terminal 2 - Node 1
+./lux-mpc --node-id=node1 --nats-url=nats://localhost:4222 --http-port=8081
+
+# Terminal 3 - Node 2
+./lux-mpc --node-id=node2 --nats-url=nats://localhost:4222 --http-port=8082
+```
+
+### 3. Generate a Key
+
+```bash
+./lux-mpc-cli keygen \
+  --parties=node0,node1,node2 \
+  --threshold=1 \
+  --protocol=ecdsa \
+  --network=ethereum
+```
+
+### 4. Sign a Message
+
+```bash
+./lux-mpc-cli sign \
+  --key-id=<key-id-from-keygen> \
+  --message=0x1234567890abcdef... \
+  --parties=node0,node1
+```
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `NODE_ID` | Unique node identifier | Required |
+| `NATS_URL` | NATS server URL | `nats://localhost:4222` |
+| `DB_PATH` | Database directory | `/data/mpc` |
+| `HTTP_PORT` | HTTP API port | `8080` |
+| `GRPC_PORT` | gRPC API port | `9090` |
+| `LOG_LEVEL` | Logging level | `info` |
+
+### Configuration File
+
+```yaml
+# config.yaml
+node:
+  id: node0
+  
+messaging:
+  nats_url: nats://localhost:4222
+  
+storage:
+  path: /data/mpc
+  
+api:
+  http_port: 8080
+  grpc_port: 9090
+```
+
+## Next Steps
+
+- [Protocols](/docs/protocols) - Learn about CGGMP21 and FROST
+- [CLI Reference](/docs/cli) - Complete command reference
+- [Deployment](/docs/deployment) - Production deployment guide

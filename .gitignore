@@ -1,0 +1,27 @@
+# Symlinks and binaries
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+QWEN.md
+bin/
+
+# Build artifacts
+hanzo-mpc
+hanzo-mpc-cli
+
+# Node data directories (test/dev only)
+node0/
+node1/
+node2/
+
+# IDE and OS files
+.idea/
+.vscode/
+.DS_Store
+*.swp
+*.swo
+
+# Test artifacts
+*.log
+coverage.out
+*.prof

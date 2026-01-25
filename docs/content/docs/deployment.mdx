@@ -1,0 +1,97 @@
+---
+title: Deployment
+description: Production deployment guide
+---
+
+# Deployment
+
+This guide covers deploying Lux MPC in production.
+
+## Docker Compose
+
+The recommended deployment method:
+
+```yaml
+version: '3.8'
+
+services:
+  nats:
+    image: nats:2.10-alpine
+    ports:
+      - "4222:4222"
+    command: "-js -m 8222"
+
+  mpc-node-0:
+    image: luxfi/mpc:latest
+    environment:
+      - NODE_ID=node0
+      - NATS_URL=nats://nats:4222
+      - DB_PATH=/data/mpc
+    volumes:
+      - mpc-data-0:/data
+
+  mpc-node-1:
+    image: luxfi/mpc:latest
+    environment:
+      - NODE_ID=node1
+      - NATS_URL=nats://nats:4222
+    volumes:
+      - mpc-data-1:/data
+
+  mpc-node-2:
+    image: luxfi/mpc:latest
+    environment:
+      - NODE_ID=node2
+      - NATS_URL=nats://nats:4222
+    volumes:
+      - mpc-data-2:/data
+
+volumes:
+  mpc-data-0:
+  mpc-data-1:
+  mpc-data-2:
+```
+
+## Kubernetes
+
+```yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mpc-nodes
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: mpc
+  template:
+    spec:
+      containers:
+      - name: mpc
+        image: luxfi/mpc:latest
+        env:
+        - name: NODE_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        volumeMounts:
+        - name: data
+          mountPath: /data
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 10Gi
+```
+
+## Security Checklist
+
+- [ ] Enable TLS for NATS connections
+- [ ] Use encrypted storage volumes
+- [ ] Set up network isolation
+- [ ] Configure firewall rules
+- [ ] Enable audit logging
+- [ ] Set up monitoring and alerting
