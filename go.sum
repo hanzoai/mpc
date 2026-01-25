@@ -35,6 +35,8 @@ github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSs
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
+github.com/decred/dcrd/crypto/blake256 v1.1.0 h1:zPMNGQCm0g4QTY27fOCorQW7EryeQ/U0x++OzVrdms8=
+github.com/decred/dcrd/crypto/blake256 v1.1.0/go.mod h1:2OfgNZ5wDpcsFmHmCK5gZTPcCXqlm2ArzUIkw9czNJo=
 github.com/decred/dcrd/crypto/rand v1.0.1 h1:pYMgDRmRv1z1RNgAAs8izJstm4B+fLFiqGD5btOt2Wg=
 github.com/decred/dcrd/crypto/rand v1.0.1/go.mod h1:MsA2XySk/4KpCOYW6vsNYTGuOYRK1wpvulaWCuW7RyI=
 github.com/decred/dcrd/dcrec/edwards/v2 v2.0.4 h1:xmmdtnGxF/Od2doiP56zBv5a3LgJ3PA6mlx3Luf622I=
@@ -168,8 +170,8 @@ github.com/luxfi/edwards25519 v0.0.0-20200305024217-f36fc4b53d43 h1:x/0xBwlF4HZ/
 github.com/luxfi/edwards25519 v0.0.0-20200305024217-f36fc4b53d43/go.mod h1:9Z+YCRg50oUwtqmMG/+KiVwrHaj0rL0AF6rpPJyCpPc=
 github.com/luxfi/log v1.4.1 h1:rIfFRodb9jrD/w7KayaUk0Oc+37PaQQdKEEMJCjR8gw=
 github.com/luxfi/log v1.4.1/go.mod h1:64IE3xRMJcpkQwnPUfJw3pDj7wU0kRS7BZ9wM7R72jk=
-github.com/luxfi/threshold v1.5.1 h1:h3lEVQTDKCJhI74gZ3qMLEE9+ga3qD2MImZByLDcTVk=
-github.com/luxfi/threshold v1.5.1/go.mod h1:OsWmH2foqB2K4vVpHTjSHrVM4oveSzqOZb/k+fqNsYY=
+github.com/luxfi/threshold v1.5.2 h1:fb09lvPIoPwj6FV/ipZVXpHle1lrDr8OdTRpXlELue8=
+github.com/luxfi/threshold v1.5.2/go.mod h1:mnHB8cl505DsdpuxWtvZqeVkBGCxEiO1Ot2/OWBaRHQ=
 github.com/mattn/go-colorable v0.1.9/go.mod h1:u6P/XSegPjTcexA+o6vUJrdnUu04hMope9wVRipJSqc=
 github.com/mattn/go-colorable v0.1.12/go.mod h1:u5H1YNBxpqRaxsYJYSkiCWKzEfiAb1Gb520KVy5xxl4=
 github.com/mattn/go-colorable v0.1.13/go.mod h1:7S9/ev0klgBDR4GtXTXX8a3vIGJpMovkB8vQcUbaXHg=
