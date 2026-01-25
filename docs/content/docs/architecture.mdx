@@ -1,0 +1,79 @@
+---
+title: Architecture
+description: System architecture and components
+---
+
+# Architecture
+
+Lux MPC is designed as a distributed system with multiple layers.
+
+## Components
+
+### MPC Node
+
+The core component that holds key shards and participates in protocols.
+
+```
+┌────────────────────────────────────────┐
+│              MPC Node                  │
+├────────────────────────────────────────┤
+│  ┌──────────────┐  ┌──────────────┐   │
+│  │   Protocol   │  │   Storage    │   │
+│  │   Handler    │  │   (BadgerDB) │   │
+│  └──────────────┘  └──────────────┘   │
+│  ┌──────────────┐  ┌──────────────┐   │
+│  │   Messaging  │  │   HTTP/gRPC  │   │
+│  │   (NATS)     │  │   API        │   │
+│  └──────────────┘  └──────────────┘   │
+└────────────────────────────────────────┘
+```
+
+### Protocol Handler
+
+Manages MPC protocol execution:
+- Key generation coordination
+- Signing session management
+- Message routing between parties
+
+### Storage Layer
+
+Persistent storage using BadgerDB:
+- Encrypted key shards
+- Protocol state
+- Audit logs
+
+## Communication
+
+### NATS Messaging
+
+Point-to-point and broadcast messaging:
+
+```go
+// Subscribe to party messages
+sub, _ := nc.Subscribe("mpc.party.alice", handler)
+
+// Broadcast to all parties
+nc.Publish("mpc.broadcast.keygen.session123", msg)
+```
+
+### Message Types
+
+| Type | Direction | Purpose |
+|------|-----------|---------|
+| `keygen` | Broadcast | Key generation rounds |
+| `sign` | Point-to-point | Signing rounds |
+| `reshare` | Broadcast | Key resharing |
+
+## Security Model
+
+### Threat Model
+
+- **Honest-but-curious**: Parties follow protocol but try to learn secrets
+- **Malicious**: Parties may deviate from protocol
+- **t-of-n threshold**: Requires t+1 honest parties
+
+### Key Protection
+
+- Key shards encrypted at rest (AES-256-GCM)
+- Memory protection during protocol execution
+- Secure message channels (TLS)

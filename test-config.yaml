@@ -1,0 +1,12 @@
+nats:
+  url: nats://127.0.0.1:4222
+consul:
+  address: localhost:8500
+
+mpc_threshold: 2
+environment: testnet
+badger_password: "test123"
+event_initiator_pubkey: "test_pubkey"
+max_concurrent_keygen: 2
+db_path: "."  
+backup_enabled: false

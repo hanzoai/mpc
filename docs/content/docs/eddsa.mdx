@@ -1,0 +1,49 @@
+---
+title: EdDSA (FROST)
+description: FROST protocol for EdDSA threshold signatures
+---
+
+# EdDSA (FROST)
+
+The FROST protocol provides efficient EdDSA threshold signatures on ed25519.
+
+## Key Generation
+
+```go
+import (
+    "github.com/luxfi/mpc/pkg/threshold"
+)
+
+api := threshold.NewUnifiedThresholdAPI()
+defer api.Close()
+
+parties := []string{"alice", "bob", "charlie"}
+threshold := 1
+
+party, err := api.KeyGen(threshold.SchemeEdDSA, "alice", parties, threshold)
+if err != nil {
+    log.Fatal(err)
+}
+
+fmt.Printf("Public Key: %x\n", party.PublicKey())
+```
+
+## Signing
+
+```go
+message := []byte("Hello, XRPL!")
+
+signature, err := party.Sign(message)
+if err != nil {
+    log.Fatal(err)
+}
+
+fmt.Printf("Signature: %x\n", signature)
+```
+
+## Networks
+
+EdDSA is used for:
+- **XRPL** - XRP Ledger accounts
+- **Solana** - Program accounts
+- **TON** - Wallet contracts

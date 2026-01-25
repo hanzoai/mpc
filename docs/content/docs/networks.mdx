@@ -1,0 +1,33 @@
+---
+title: Networks
+description: Supported blockchain networks
+---
+
+# Networks
+
+Lux MPC supports multiple blockchain networks through different signature schemes.
+
+## Network Support Matrix
+
+| Network | Protocol | Curve | Status |
+|---------|----------|-------|--------|
+| Bitcoin | ECDSA, Taproot | secp256k1 | ✅ |
+| Ethereum | ECDSA | secp256k1 | ✅ |
+| Lux | ECDSA | secp256k1 | ✅ |
+| XRPL | EdDSA | ed25519 | ✅ |
+| Solana | EdDSA | ed25519 | ✅ |
+| TON | EdDSA | ed25519 | ✅ |
+
+## Network Configuration
+
+```go
+import "github.com/luxfi/mpc/pkg/types"
+
+// Get key type for network
+keyType := types.GetNetworkKeyType(types.NetworkXRPL)
+// Returns: KeyTypeEdDSA
+
+// Check network support
+supported := types.IsNetworkSupported(types.NetworkEthereum)
+// Returns: true
+```

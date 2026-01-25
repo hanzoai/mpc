@@ -1,0 +1,47 @@
+---
+title: Ethereum
+description: Ethereum integration
+---
+
+# Ethereum Integration
+
+Lux MPC supports Ethereum and all EVM-compatible chains using ECDSA.
+
+## Key Generation
+
+```go
+api := threshold.NewUnifiedThresholdAPI()
+party, _ := api.KeyGen(threshold.SchemeECDSA, "party1", parties, threshold)
+
+// Derive Ethereum address
+pubKey := party.PublicKey()
+ethAddr := crypto.PubkeyToAddress(pubKey)
+```
+
+## Transaction Signing
+
+```go
+import "github.com/ethereum/go-ethereum/core/types"
+
+tx := types.NewTransaction(nonce, to, value, gasLimit, gasPrice, data)
+
+// Get transaction hash
+signer := types.NewLondonSigner(chainID)
+hash := signer.Hash(tx)
+
+// Sign with threshold key
+signature, _ := party.Sign(hash.Bytes())
+
+// Attach signature
+signedTx, _ := tx.WithSignature(signer, signature)
+```
+
+## EVM Chains
+
+Works with all EVM-compatible chains:
+- Ethereum
+- Lux C-Chain
+- Polygon
+- Arbitrum
+- Optimism
+- BSC

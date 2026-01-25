@@ -1,0 +1,58 @@
+---
+title: Configuration
+description: Configuration reference
+---
+
+# Configuration
+
+Lux MPC can be configured via environment variables, config files, or CLI flags.
+
+## Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `NODE_ID` | Unique node identifier | Required |
+| `NATS_URL` | NATS server URL | `nats://localhost:4222` |
+| `DB_PATH` | Database directory | `/data/mpc` |
+| `HTTP_PORT` | HTTP API port | `8080` |
+| `GRPC_PORT` | gRPC API port | `9090` |
+| `LOG_LEVEL` | Log level (debug, info, warn, error) | `info` |
+| `ENCRYPTION_KEY` | Database encryption key | Auto-generated |
+
+## Configuration File
+
+```yaml
+# config.yaml
+node:
+  id: node0
+  
+messaging:
+  nats_url: nats://localhost:4222
+  timeout: 30s
+  
+storage:
+  path: /data/mpc
+  encryption_key: ${ENCRYPTION_KEY}
+  
+api:
+  http_port: 8080
+  grpc_port: 9090
+  
+logging:
+  level: info
+  format: json
+```
+
+## Loading Configuration
+
+```bash
+# Via environment
+export NODE_ID=node0
+./lux-mpc
+
+# Via config file
+./lux-mpc --config=/etc/mpc/config.yaml
+
+# Via CLI flags
+./lux-mpc --node-id=node0 --nats-url=nats://localhost:4222
+```

@@ -1,0 +1,48 @@
+---
+title: XRPL
+description: XRP Ledger integration
+---
+
+# XRPL Integration
+
+Lux MPC provides native support for XRP Ledger using EdDSA (ed25519).
+
+## Key Generation
+
+```go
+api := threshold.NewUnifiedThresholdAPI()
+defer api.Close()
+
+parties := []string{"signer1", "signer2", "signer3"}
+party, _ := api.KeyGen(threshold.SchemeEdDSA, "signer1", parties, 1)
+
+// Get XRPL address
+pubKey := party.PublicKey()
+xrplAddr := deriveXRPLAddress(pubKey)
+```
+
+## Transaction Signing
+
+```go
+// Create XRPL transaction
+tx := &xrpl.Payment{
+    Account:     xrplAddr,
+    Destination: "rDestination...",
+    Amount:      "1000000", // drops
+}
+
+// Sign with threshold key
+txBlob := tx.Serialize()
+signature, _ := party.Sign(txBlob)
+
+// Submit to XRPL
+tx.TxnSignature = hex.EncodeToString(signature)
+```
+
+## Network Endpoints
+
+| Network | Endpoint |
+|---------|----------|
+| Mainnet | `wss://xrplcluster.com` |
+| Testnet | `wss://s.altnet.rippletest.net:51233` |
+| Devnet | `wss://s.devnet.rippletest.net:51233` |

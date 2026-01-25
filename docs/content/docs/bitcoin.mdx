@@ -1,0 +1,45 @@
+---
+title: Bitcoin
+description: Bitcoin integration
+---
+
+# Bitcoin Integration
+
+Lux MPC supports Bitcoin with both ECDSA (legacy/segwit) and Taproot (Schnorr).
+
+## Legacy/SegWit (ECDSA)
+
+```go
+api := threshold.NewUnifiedThresholdAPI()
+party, _ := api.KeyGen(threshold.SchemeECDSA, "party1", parties, threshold)
+
+// Generate P2WPKH address
+pubKey := party.PublicKey()
+witnessHash := btcutil.Hash160(pubKey)
+addr, _ := btcutil.NewAddressWitnessPubKeyHash(witnessHash, &chaincfg.MainNetParams)
+```
+
+## Taproot (Schnorr)
+
+```go
+party, _ := api.KeyGen(threshold.SchemeTaproot, "party1", parties, threshold)
+
+// Generate Taproot address
+taprootPubKey := party.PublicKey()
+addr, _ := btcutil.NewAddressTaproot(taprootPubKey, &chaincfg.MainNetParams)
+```
+
+## Transaction Signing
+
+```go
+// Create unsigned transaction
+tx := wire.NewMsgTx(wire.TxVersion)
+// ... add inputs and outputs
+
+// Sign with threshold key
+sigHash := txscript.CalcWitnessSigHash(...)
+signature, _ := party.Sign(sigHash)
+
+// Add witness
+tx.TxIn[0].Witness = wire.TxWitness{signature, pubKey}
+```

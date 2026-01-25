@@ -1,0 +1,336 @@
+---
+title: Installation
+description: Step-by-step guide to install and configure Lux MPC
+---
+
+# Installation Guide
+
+## Prerequisites
+
+Before starting, ensure you have:
+
+- **Go** 1.23+ installed: [Install Go here](https://go.dev/doc/install)
+- **NATS** server running (JetStream enabled)
+- **Consul** server running
+
+## Clone and Build
+
+### Clone the Repository
+
+```bash
+git clone https://github.com/luxfi/mpc.git
+cd mpc
+```
+
+### Build the Project
+
+With Make:
+
+```bash
+make
+```
+
+Or with Go:
+
+```bash
+go install ./cmd/lux-mpc
+go install ./cmd/lux-mpc-cli
+```
+
+### Available Commands
+
+- `lux-mpc`: Start a Lux MPC node
+- `lux-mpc-cli`: CLI utility for peer, identity, and initiator configuration
+
+## Infrastructure Setup
+
+### Development Environment
+
+Create a `compose.yml` file for local development:
+
+```yaml
+services:
+  nats-server:
+    image: nats:latest
+    container_name: nats-server
+    command: -js --http_port 8222
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+      - "6222:6222"
+    tty: true
+    restart: always
+
+  consul:
+    image: consul:1.15.4
+    container_name: consul
+    ports:
+      - "8500:8500"
+      - "8601:8600/udp"
+    command: "agent -server -ui -node=server-1 -bootstrap-expect=1 -client=0.0.0.0"
+    restart: always
+```
+
+Start the services:
+
+```bash
+docker compose up -d
+```
+
+### Production Environment
+
+For production deployments:
+
+1. Use clustered NATS with JetStream
+2. Use Consul cluster with TLS
+3. Enable encryption for all key material
+4. Use HSMs for key storage where possible
+
+## Peer Configuration
+
+### Generate Peers
+
+```bash
+lux-mpc-cli generate-peers -n 3
+```
+
+Output:
+
+```json
+{
+  "node0": "12345678-1234-1234-1234-123456789abc",
+  "node1": "23456789-2345-2345-2345-23456789abcd",
+  "node2": "34567890-3456-3456-3456-3456789abcde"
+}
+```
+
+### Register Peers to Consul
+
+```bash
+lux-mpc-cli register-peers
+```
+
+## Configuration
+
+### Create Configuration File
+
+```bash
+cp config.yaml.template config.yaml
+```
+
+Edit `config.yaml`:
+
+```yaml
+nats:
+  url: nats://127.0.0.1:4222
+consul:
+  address: localhost:8500
+
+mpc_threshold: 2
+environment: development
+badger_password: "your_secure_password"
+event_initiator_pubkey: "your_event_initiator_pubkey"
+```
+
+### Generate Secure Password
+
+```bash
+< /dev/urandom tr -dc 'A-Za-z0-9!@#$^&*()-_=+[]{}|;:,.<>?/~' | head -c 32; echo
+```
+
+## Event Initiator Setup
+
+### Generate Initiator Key
+
+Development (unencrypted):
+
+```bash
+lux-mpc-cli generate-initiator
+```
+
+Production (encrypted):
+
+```bash
+lux-mpc-cli generate-initiator --encrypt
+```
+
+### Configure Public Key
+
+From `event_initiator.identity.json`:
+
+```json
+{
+  "public_key": "09be5d070816aadaa1b6638cad33e819a8aed7101626f6bf1e0b427412c3408a"
+}
+```
+
+Add to `config.yaml`:
+
+```yaml
+event_initiator_pubkey: "09be5d070816aadaa1b6638cad33e819a8aed7101626f6bf1e0b427412c3408a"
+```
+
+## Node Identity Setup
+
+### Create Node Directories
+
+```bash
+mkdir node{0..2}
+for dir in node{0..2}; do
+  cp config.yaml peers.json "$dir/"
+  mkdir -p "$dir/identity"
+done
+```
+
+### Generate Node Identities
+
+For each node:
+
+```bash
+cd node0
+lux-mpc-cli generate-identity --node node0
+
+# Production: use encryption
+lux-mpc-cli generate-identity --node node0 --encrypt
+```
+
+### Distribute Identity Files
+
+Each node needs all public identities:
+
+```bash
+# From node0 directory
+cp identity/node0_identity.json ../node1/identity/
+cp identity/node0_identity.json ../node2/identity/
+
+# Repeat for node1 and node2
+```
+
+### Final Directory Structure
+
+```
+mpc/
+  node0/
+    config.yaml
+    peers.json
+    identity/
+      node0_identity.json
+      node0_private.key
+      node1_identity.json
+      node2_identity.json
+  node1/
+    config.yaml
+    peers.json
+    identity/
+      node0_identity.json
+      node1_identity.json
+      node1_private.key
+      node2_identity.json
+  node2/
+    config.yaml
+    peers.json
+    identity/
+      node0_identity.json
+      node1_identity.json
+      node2_identity.json
+      node2_private.key
+```
+
+## Starting the Cluster
+
+### Start Each Node
+
+Terminal 1:
+```bash
+cd node0 && lux-mpc start -n node0
+```
+
+Terminal 2:
+```bash
+cd node1 && lux-mpc start -n node1
+```
+
+Terminal 3:
+```bash
+cd node2 && lux-mpc start -n node2
+```
+
+### Production Mode
+
+Avoid hardcoded credentials:
+
+```bash
+lux-mpc start -n node0 --prompt-credentials
+```
+
+## Verification
+
+Check node status in Consul UI at `http://localhost:8500`:
+
+- All nodes should show as healthy
+- Services should be registered
+
+Test wallet creation:
+
+```go
+package main
+
+import (
+    "github.com/luxfi/mpc/pkg/client"
+    "github.com/nats-io/nats.go"
+)
+
+func main() {
+    nc, _ := nats.Connect("nats://localhost:4222")
+    defer nc.Close()
+
+    mpcClient := client.NewMPCClient(client.Options{
+        NatsConn: nc,
+        KeyPath:  "./event_initiator.key",
+    })
+
+    mpcClient.CreateWallet("test-wallet-001")
+}
+```
+
+## Production Checklist
+
+- [ ] TLS enabled on NATS
+- [ ] TLS enabled on Consul
+- [ ] All keys encrypted with strong passwords
+- [ ] HSM integration for production keys
+- [ ] Network isolation between nodes
+- [ ] Monitoring and alerting configured
+- [ ] Backup strategy implemented
+- [ ] Key rotation schedule defined
+- [ ] Incident response procedures documented
+
+## Troubleshooting
+
+### Node Fails to Start
+
+```bash
+# Check NATS connectivity
+nc -zv localhost 4222
+
+# Check Consul connectivity
+curl http://localhost:8500/v1/status/leader
+```
+
+### Key Generation Timeout
+
+1. Increase timeout in config
+2. Check network latency between nodes
+3. Verify all nodes are healthy
+
+### Identity Verification Failed
+
+1. Ensure all identity files are distributed
+2. Check file permissions
+3. Verify Ed25519 signatures match
+
+## Next Steps
+
+- [Protocol Overview](/docs/protocol) - Understand MPC protocols
+- [API Reference](/docs/api) - Integration documentation
+- [Security Model](/docs/security) - Security best practices

@@ -1,0 +1,121 @@
+version: '3.8'
+
+services:
+  # NATS messaging system
+  nats:
+    image: nats:2.10-alpine
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    command: "-js -m 8222"
+    networks:
+      - mpc-network
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "4222"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Consul for service discovery
+  consul:
+    image: consul:1.17
+    ports:
+      - "8500:8500"
+    command: "agent -dev -client=0.0.0.0"
+    networks:
+      - mpc-network
+    healthcheck:
+      test: ["CMD", "consul", "members"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Lux MPC Node 0
+  lux-mpc-0:
+    image: luxfi/lux-mpc:latest
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ID=node0
+      - NATS_URL=nats://nats:4222
+      - CONSUL_URL=http://consul:8500
+      - DB_PATH=/data/mpc
+      - HTTP_PORT=8080
+      - GRPC_PORT=9090
+      - LOG_LEVEL=debug
+    volumes:
+      - mpc-data-0:/data
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    networks:
+      - mpc-network
+    depends_on:
+      nats:
+        condition: service_healthy
+      consul:
+        condition: service_healthy
+
+  # Lux MPC Node 1
+  lux-mpc-1:
+    image: luxfi/lux-mpc:latest
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ID=node1
+      - NATS_URL=nats://nats:4222
+      - CONSUL_URL=http://consul:8500
+      - DB_PATH=/data/mpc
+      - HTTP_PORT=8080
+      - GRPC_PORT=9090
+      - LOG_LEVEL=debug
+    volumes:
+      - mpc-data-1:/data
+    ports:
+      - "8081:8080"
+      - "9091:9090"
+    networks:
+      - mpc-network
+    depends_on:
+      nats:
+        condition: service_healthy
+      consul:
+        condition: service_healthy
+
+  # Lux MPC Node 2
+  lux-mpc-2:
+    image: luxfi/lux-mpc:latest
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ID=node2
+      - NATS_URL=nats://nats:4222
+      - CONSUL_URL=http://consul:8500
+      - DB_PATH=/data/mpc
+      - HTTP_PORT=8080
+      - GRPC_PORT=9090
+      - LOG_LEVEL=debug
+    volumes:
+      - mpc-data-2:/data
+    ports:
+      - "8082:8080"
+      - "9092:9090"
+    networks:
+      - mpc-network
+    depends_on:
+      nats:
+        condition: service_healthy
+      consul:
+        condition: service_healthy
+
+volumes:
+  mpc-data-0:
+  mpc-data-1:
+  mpc-data-2:
+
+networks:
+  mpc-network:
+    driver: bridge

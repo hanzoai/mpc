@@ -1,0 +1,246 @@
+---
+title: Protocol Overview
+description: Deep dive into Lux MPC's threshold cryptography protocols
+---
+
+# MPC Protocol Overview
+
+## Introduction to Multi-Party Computation
+
+Multi-Party Computation (MPC) is a cryptographic technique that enables multiple parties to jointly compute a function over their inputs while keeping those inputs private. In the context of Lux MPC, this allows distributed key generation and signing without any single party having access to the complete private key.
+
+## Threshold Signatures
+
+Lux MPC implements threshold signature schemes where a minimum number `t` out of `n` total parties must cooperate to produce a valid signature.
+
+### Mathematical Foundation
+
+For a threshold scheme (t, n):
+- **n** = total number of parties (key share holders)
+- **t** = threshold (minimum parties needed to sign)
+- **Security constraint**: t ≥ ⌊n/2⌋ + 1 (honest majority)
+
+The private key `sk` is split into shares `sk₁, sk₂, ..., skₙ` such that:
+- Any `t` shares can reconstruct the key or sign
+- Any `t-1` shares reveal no information about `sk`
+
+## Supported Protocols
+
+### CGGMP21 (ECDSA)
+
+Lux MPC implements the CGGMP21 protocol for threshold ECDSA signatures, which provides:
+
+- **Proactive Security**: Supports key refresh and share redistribution
+- **Identifiable Abort**: Malicious parties can be identified
+- **Non-Interactive Signing**: After preprocessing, signing requires minimal rounds
+
+#### Protocol Phases
+
+1. **Key Generation**
+   ```
+   Input: threshold t, party count n
+   Output: ECDSA key shares for each party
+
+   1. Generate Paillier keypairs for each party
+   2. Share generation using Feldman VSS
+   3. Generate ECDSA key shares
+   4. Compute public key from shares
+   ```
+
+2. **Preprocessing (Triple Generation)**
+   ```
+   Generate random values for signing:
+   - k: nonce share
+   - γ: masking value
+   - δ: MAC key
+   ```
+
+3. **Signing**
+   ```
+   Input: message hash m, preprocessed values
+   Output: ECDSA signature (r, s)
+
+   1. Compute R = k·G (nonce point)
+   2. Compute signature shares sᵢ
+   3. Combine shares to get final signature
+   ```
+
+### FROST (EdDSA)
+
+For Ed25519 signatures, Lux MPC uses the FROST (Flexible Round-Optimized Schnorr Threshold) protocol:
+
+- **Two-Round Signing**: Optimal round complexity
+- **Deterministic Nonces**: No preprocessing required
+- **Aggregatable Signatures**: Support for signature aggregation
+
+#### Protocol Flow
+
+1. **Distributed Key Generation (DKG)**
+   ```
+   1. Each party generates polynomial coefficients
+   2. Compute and broadcast commitments
+   3. Share secret values with other parties
+   4. Derive signing key shares
+   ```
+
+2. **Signing Protocol**
+   ```
+   Round 1: Commitment
+   - Generate nonce pairs (dᵢ, eᵢ)
+   - Broadcast commitments (Dᵢ, Eᵢ)
+
+   Round 2: Signature Share
+   - Compute binding values
+   - Generate signature shares
+   - Aggregate to final signature
+   ```
+
+## Communication Model
+
+### Message Types
+
+```go
+type Message struct {
+    SessionID  string
+    Round      uint32
+    From       PartyID
+    To         PartyID  // Empty for broadcast
+    Type       MessageType
+    Data       []byte
+    Signature  []byte   // Ed25519 signature
+}
+```
+
+### Message Flow Patterns
+
+1. **Broadcast**: One-to-all communication
+2. **Point-to-Point**: Encrypted direct messages
+3. **Echo Broadcast**: Byzantine-resistant broadcast
+
+### Network Layer (NATS)
+
+NATS JetStream provides:
+- **Persistent Messaging**: Messages survive node restarts
+- **Exactly-Once Delivery**: No duplicate processing
+- **Message Ordering**: FIFO guarantees per subject
+
+## Security Properties
+
+### Correctness
+The protocol produces valid signatures indistinguishable from single-party signatures.
+
+### Privacy
+No coalition of less than `t` parties can:
+- Recover the private key
+- Sign messages without cooperation
+- Learn anything about other parties' shares
+
+### Robustness
+The protocol continues functioning despite:
+- Up to `n-t` crashed nodes
+- Network partitions (with eventual consistency)
+- Message delays and reordering
+
+### Accountability
+All protocol violations are:
+- Detectable through zero-knowledge proofs
+- Attributable to specific parties
+- Logged for audit trails
+
+## Performance Optimizations
+
+### Preprocessing
+- **Batch Generation**: Generate multiple preprocessing triples in parallel
+- **Pipelining**: Overlap communication and computation
+- **Caching**: Reuse expensive computations
+
+### Communication
+- **Message Batching**: Aggregate multiple messages
+- **Compression**: Reduce message sizes with point compression
+- **Direct Channels**: Skip broadcast for point-to-point messages
+
+### Computation
+- **Parallel Processing**: Utilize multiple CPU cores
+- **Precomputation**: Generate tables for scalar multiplication
+- **Hardware Acceleration**: Support for HSMs and secure enclaves
+
+## Key Resharing
+
+Resharing allows:
+- **Threshold Changes**: Modify `t` without changing the key
+- **Party Changes**: Add/remove parties from the scheme
+- **Proactive Security**: Refresh shares periodically
+
+### Resharing Protocol
+
+```
+Input: old shares {s₁, ..., sₙ}, new parameters (t', n')
+Output: new shares {s'₁, ..., s'ₙ'}
+
+1. Old parties create sharing of their shares
+2. New parties receive and verify shares
+3. Combine to get new sharing of same key
+4. Verify public key remains unchanged
+```
+
+## Failure Recovery
+
+### Node Recovery
+When a node loses its state:
+1. Request share recovery from `t` other nodes
+2. Verify recovered share using public commitments
+3. Rejoin signing protocols
+
+### Network Partitions
+Split-brain scenarios are handled through:
+1. Quorum requirements (need `t` parties)
+2. NATS JetStream for message persistence
+3. Eventual consistency when partition heals
+
+## Protocol Comparison
+
+| Feature | CGGMP21 (ECDSA) | FROST (EdDSA) |
+|---------|-----------------|---------------|
+| Rounds (key gen) | 3 | 2 |
+| Rounds (signing) | 3 (1 with preprocessing) | 2 |
+| Communication | O(n²) | O(n²) |
+| Computation | Higher (Paillier) | Lower |
+| Preprocessing | Required | Not required |
+| Aggregatable | No | Yes |
+| Key size | 32 bytes | 32 bytes |
+| Signature size | 64 bytes | 64 bytes |
+
+## Implementation Details
+
+### Session Management
+
+Each protocol session maintains:
+- **Session ID**: Unique identifier
+- **State Machine**: Tracks protocol progress
+- **Message Queue**: Ordered message processing
+- **Timeout Handling**: Detect stuck sessions
+
+### Storage Layer
+
+BadgerDB stores:
+- **Key Shares**: Encrypted with AES-256
+- **Commitments**: Public verification data
+- **Session State**: Persistent across restarts
+- **Audit Logs**: Protocol execution history
+
+### Identity & Authentication
+
+All nodes maintain Ed25519 keypairs for:
+- **Message Authentication**: Sign all protocol messages
+- **Node Identity**: Unique identification in the network
+- **Access Control**: Authorize protocol participation
+
+## Best Practices
+
+1. **Use Hardware Security Modules (HSMs)** for production deployments
+2. **Implement rate limiting** to prevent DoS attacks
+3. **Regular key rotation** through resharing (monthly recommended)
+4. **Monitor protocol metrics** for anomaly detection
+5. **Maintain secure backups** of encrypted key shares
+6. **Use separate networks** for different security domains
+7. **Implement emergency shutdown** procedures

@@ -1,0 +1,14 @@
+nats:
+  url: nats://127.0.0.1:4222
+consul:
+  address: localhost:8500
+
+mpc_threshold: 2
+environment: local # Options: mainnet, testnet, local
+badger_password: "your_badger_password"
+event_initiator_pubkey: "event_initiator_pubkey"
+max_concurrent_keygen: 2
+db_path: "."  
+backup_enabled: true
+backup_period_seconds: 300 # 5 minutes
+backup_dir: backups

@@ -1,0 +1,65 @@
+---
+title: Storage
+description: Persistent storage with BadgerDB
+---
+
+# Storage
+
+Lux MPC uses BadgerDB for persistent storage of key shards and protocol state.
+
+## Configuration
+
+```yaml
+storage:
+  path: /data/mpc
+  encryption_key: ${ENCRYPTION_KEY}
+  gc_interval: 5m
+```
+
+## Data Model
+
+### Key Shards
+
+```go
+type KeyShare struct {
+    ID        string
+    Protocol  string // ecdsa, eddsa, taproot
+    PublicKey []byte
+    Share     []byte // encrypted
+    Parties   []string
+    Threshold int
+    CreatedAt time.Time
+}
+```
+
+### Sessions
+
+```go
+type Session struct {
+    ID        string
+    Type      string // keygen, sign, reshare
+    State     map[string][]byte
+    CreatedAt time.Time
+}
+```
+
+## Encryption
+
+All sensitive data encrypted at rest:
+
+```go
+// AES-256-GCM encryption
+cipher, _ := aes.NewCipher(key)
+gcm, _ := cipher.NewGCM(cipher)
+encrypted := gcm.Seal(nonce, nonce, plaintext, nil)
+```
+
+## Backup
+
+```bash
+# Backup database
+./lux-mpc-cli backup --output=/backup/mpc-backup.tar.gz
+
+# Restore
+./lux-mpc-cli restore --input=/backup/mpc-backup.tar.gz
+```
