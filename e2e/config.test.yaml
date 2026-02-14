@@ -1,9 +1,9 @@
-badger_password: 8tQvZII41zEOrxREX6SvZcIPuEXUj0Su
+badger_password: mtZD8h4WVMl3dtN4wbNBGKDT1rRZZ5xs
 consul:
   address: localhost:8501
 db_path: ./test_db
 environment: development
-event_initiator_pubkey: 9106f6ecbde008f3a7b3bec8769e3d3d9fccb4912ec6762bcf399751395dc242
+event_initiator_pubkey: d6d3458d696353a3c1d262302dd39370c10efa352f0e2a4374534eb0c3736fe1
 max_concurrent_keygen: 1
 mpc_threshold: 1
 mpc_version: 1.0.0

@@ -280,6 +280,169 @@ make e2e-test
 
 **Note**: Solana/TON use Ed25519 natively but our FROST implementation produces Taproot/BIP-340 signatures. Native Ed25519 support requires implementing the Ed25519 FROST variant.
 
+## 🔒 Policy Engine & Private Policies (Added Jan 2026)
+
+### Policy Package (`pkg/policy/`)
+
+Fireblocks/Utila-style policy engine for transaction governance:
+
+| File | Purpose |
+|------|---------|
+| `policy.go` | Full policy engine with signers, roles, spending limits |
+| `approval.go` | Approval workflow and multi-signer authorization |
+| `private_policy.go` | TFHE-powered private policy evaluation |
+
+**Key Features:**
+- **Signers & Roles**: ADMIN, SIGNER, VIEWER with customizable permissions
+- **Spending Limits**: Per-transaction, daily, monthly limits by asset
+- **Whitelist/Blacklist**: Address-based transaction filtering
+- **Time Windows**: Business hours enforcement
+- **Rate Limiting**: Velocity controls
+
+### ThresholdVM (`pkg/threshold/policy_vm.go`)
+
+Protocol-level policy enforcement within MPC signing:
+
+```go
+// ThresholdVM evaluates policies cryptographically before signature shares
+vm := NewThresholdVM(ThresholdVMConfig{
+    NodeID:       "mpc-node-0",
+    Threshold:    2,
+    TotalNodes:   3,
+    FHEPublicKey: fhePublicKey, // Optional for private rules
+    FHEServerKey: fheServerKey,
+})
+
+// Policies verified before any signature share produced
+share, err := vm.VerifyAndSign(ctx, req, keyShare)
+```
+
+**Rule Opcodes:**
+- `0x01-0x04`: Amount comparisons (LT, GT, Range, Cumulative)
+- `0x10-0x12`: Address checks (Whitelist, Blacklist, Source)
+- `0x20-0x22`: Time operations (Window, TimeLock, Cooldown)
+- `0x30-0x32`: Approval operations (Signatures, Quorum, Group)
+- `0x40-0x42`: Vesting/Streaming (VestingUnlock, StreamRate, Cliff)
+- `0x80-0x83`: TFHE private operations (PrivateAmountLT/GT, Cumulative, Whitelist)
+
+### Private Policy with FHE
+
+The `FHEEngine` interface allows plugging in any FHE implementation:
+
+```go
+type FHEEngine interface {
+    Encrypt64(value uint64) EncryptedValue
+    EncryptBool(value bool) EncryptedValue
+    Lt64(a, b EncryptedValue) EncryptedValue
+    Gt64(a, b EncryptedValue) EncryptedValue
+    And(a, b EncryptedValue) EncryptedValue
+    // ... more operations
+}
+```
+
+**Integration with luxfi/fhe:**
+```go
+// Create adapter for github.com/luxfi/fhe
+type LuxFHEAdapter struct {
+    serverKey *fhe.ServerKey
+    publicKey *fhe.PublicKey
+}
+
+func (a *LuxFHEAdapter) Encrypt64(v uint64) EncryptedValue { ... }
+func (a *LuxFHEAdapter) Lt64(x, y EncryptedValue) EncryptedValue { ... }
+```
+
+### Solidity Policy Contract (`contracts/ThresholdPolicy.sol`)
+
+On-chain policy definition compatible with ThresholdVM:
+
+```solidity
+// Register policy for MPC wallet
+thresholdPolicy.registerPolicy(walletId, signers, requiredSigs, expiresAt);
+
+// Configure vesting schedule
+thresholdPolicy.configureVesting(walletId, totalAmount, startTime, duration, cliff);
+
+// Configure streaming payments
+thresholdPolicy.configureStream(walletId, ratePerSecond, startTime);
+
+// Get policy hash for MPC verification
+bytes32 policyHash = thresholdPolicy.computePolicyHash(walletId);
+```
+
+## 📦 Storage & Backup (`pkg/storage/`)
+
+### BadgerDB Store (`badger_store.go`)
+
+Native BadgerDB with encryption and backup support:
+
+```go
+store, _ := NewBadgerStore(cfg)
+defer store.Close()
+
+// Full backup
+version, _ := store.Backup(writer)
+
+// Incremental backup since version
+newVersion, _ := store.BackupSince(writer, lastVersion)
+
+// Restore from backup
+store.Load(reader)
+```
+
+### S3 Backup Client (`s3_backup.go`)
+
+S3-compatible backup for MinIO/Hanzo Storage:
+
+```go
+client, _ := NewS3BackupClient(S3Config{
+    Endpoint:    "http://minio:9000",
+    Bucket:      "mpc-backups",
+    AccessKeyID: "luxadmin",
+    SecretKey:   "luxsecret123",
+    Region:      "us-east-1",
+})
+
+// Backup to S3
+client.UploadFromStore(ctx, store, "node-0/daily", false, 0)
+
+// Automatic scheduled backups
+scheduler := NewBackupScheduler(client, store, "node-0", 3600)
+scheduler.Start(ctx)
+```
+
+## 🐳 Deployment (`deploy/`)
+
+### Docker Compose Stack
+
+Full deployment stack in `deploy/compose.yml`:
+
+| Service | Port | Purpose |
+|---------|------|---------|
+| `lux-mpc-{0,1,2}` | 6000-6002 | MPC signing nodes |
+| `lux-kms` | 8080 | Key management service |
+| `nats` | 4222 | Message broker |
+| `consul` | 8500 | Service discovery |
+| `minio` | 9000 | S3-compatible backup storage |
+| `postgres` | 5432 | KMS database |
+| `redis` | 6379 | Caching |
+| `prometheus` | 9093 | Metrics (optional) |
+| `grafana` | 3001 | Dashboards (optional) |
+
+### Makefile Commands
+
+```bash
+make setup          # Create config files and directories
+make gen-keys       # Generate encryption keys
+make up             # Start all services
+make up-monitoring  # Start with Prometheus/Grafana
+make status         # Check service health
+make backup         # Trigger S3 backup
+make backup-local   # Local backup
+make keygen WALLET_ID=xxx  # Generate MPC keys
+make sign WALLET_ID=xxx MESSAGE=xxx  # Sign message
+```
+
 ## 🎯 Best Practices
 
 1. **Always backup** BadgerDB before major operations
