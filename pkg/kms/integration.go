@@ -1,11 +1,17 @@
 package kms
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"time"
 
+	"filippo.io/age"
 	"github.com/hanzoai/mpc/pkg/logger"
 )
 
@@ -98,16 +104,204 @@ func (m *MPCKMSIntegration) ListStoredKeys() []EncryptedKey {
 	return m.kms.ListKeys()
 }
 
-// BackupKeys creates an encrypted backup of all keys
+// BackupKeys creates an encrypted backup of all keys using Age encryption
 func (m *MPCKMSIntegration) BackupKeys(backupPath string, backupPassword string) error {
-	// This would implement a secure backup mechanism
-	// For now, we'll leave it as a placeholder
-	return fmt.Errorf("backup not yet implemented")
+	if backupPassword == "" {
+		return fmt.Errorf("backup password is required")
+	}
+
+	// Create tar.gz of the KMS directory
+	var tarBuffer bytes.Buffer
+	gzWriter := gzip.NewWriter(&tarBuffer)
+	tarWriter := tar.NewWriter(gzWriter)
+
+	kmsPath := m.kms.storagePath
+	err := filepath.Walk(kmsPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip directories
+		if info.IsDir() {
+			return nil
+		}
+
+		// Only backup JSON key files
+		if filepath.Ext(path) != ".json" {
+			return nil
+		}
+
+		// Read file content
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("failed to read %s: %w", path, err)
+		}
+
+		// Create tar header
+		relPath, _ := filepath.Rel(kmsPath, path)
+		header := &tar.Header{
+			Name:    relPath,
+			Mode:    0600,
+			Size:    int64(len(content)),
+			ModTime: info.ModTime(),
+		}
+
+		if err := tarWriter.WriteHeader(header); err != nil {
+			return fmt.Errorf("failed to write tar header: %w", err)
+		}
+
+		if _, err := tarWriter.Write(content); err != nil {
+			return fmt.Errorf("failed to write tar content: %w", err)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create backup archive: %w", err)
+	}
+
+	if err := tarWriter.Close(); err != nil {
+		return fmt.Errorf("failed to close tar writer: %w", err)
+	}
+	if err := gzWriter.Close(); err != nil {
+		return fmt.Errorf("failed to close gzip writer: %w", err)
+	}
+
+	// Encrypt with Age using password
+	recipient, err := age.NewScryptRecipient(backupPassword)
+	if err != nil {
+		return fmt.Errorf("failed to create age recipient: %w", err)
+	}
+
+	// Create output file
+	outFile, err := os.Create(backupPath)
+	if err != nil {
+		return fmt.Errorf("failed to create backup file: %w", err)
+	}
+	defer outFile.Close()
+
+	// Write magic header
+	magic := []byte("HANZO_KMS_BACKUP_V1\n")
+	if _, err := outFile.Write(magic); err != nil {
+		return fmt.Errorf("failed to write magic header: %w", err)
+	}
+
+	// Encrypt and write
+	encWriter, err := age.Encrypt(outFile, recipient)
+	if err != nil {
+		return fmt.Errorf("failed to create encrypted writer: %w", err)
+	}
+
+	if _, err := io.Copy(encWriter, &tarBuffer); err != nil {
+		return fmt.Errorf("failed to write encrypted data: %w", err)
+	}
+
+	if err := encWriter.Close(); err != nil {
+		return fmt.Errorf("failed to finalize encryption: %w", err)
+	}
+
+	logger.Info("KMS backup created successfully",
+		"path", backupPath,
+		"node", m.nodeID,
+		"timestamp", time.Now().UTC().Format(time.RFC3339),
+	)
+
+	return nil
 }
 
 // RestoreKeys restores keys from an encrypted backup
 func (m *MPCKMSIntegration) RestoreKeys(backupPath string, backupPassword string) error {
-	// This would implement a secure restore mechanism
-	// For now, we'll leave it as a placeholder
-	return fmt.Errorf("restore not yet implemented")
+	if backupPassword == "" {
+		return fmt.Errorf("backup password is required")
+	}
+
+	// Open backup file
+	inFile, err := os.Open(backupPath)
+	if err != nil {
+		return fmt.Errorf("failed to open backup file: %w", err)
+	}
+	defer inFile.Close()
+
+	// Verify magic header
+	magic := make([]byte, 20)
+	if _, err := io.ReadFull(inFile, magic); err != nil {
+		return fmt.Errorf("failed to read magic header: %w", err)
+	}
+	if string(magic) != "HANZO_KMS_BACKUP_V1\n" {
+		return fmt.Errorf("invalid backup file format")
+	}
+
+	// Decrypt with Age
+	identity, err := age.NewScryptIdentity(backupPassword)
+	if err != nil {
+		return fmt.Errorf("failed to create age identity: %w", err)
+	}
+
+	decReader, err := age.Decrypt(inFile, identity)
+	if err != nil {
+		return fmt.Errorf("failed to decrypt backup (wrong password?): %w", err)
+	}
+
+	// Decompress gzip
+	gzReader, err := gzip.NewReader(decReader)
+	if err != nil {
+		return fmt.Errorf("failed to create gzip reader: %w", err)
+	}
+	defer gzReader.Close()
+
+	// Extract tar
+	tarReader := tar.NewReader(gzReader)
+	kmsPath := m.kms.storagePath
+
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("failed to read tar entry: %w", err)
+		}
+
+		// Skip directories
+		if header.Typeflag == tar.TypeDir {
+			continue
+		}
+
+		// Validate filename (only allow .json files)
+		if filepath.Ext(header.Name) != ".json" {
+			continue
+		}
+
+		// Create target path
+		targetPath := filepath.Join(kmsPath, filepath.Clean(header.Name))
+
+		// Ensure target is within KMS directory (prevent path traversal)
+		if !filepath.HasPrefix(targetPath, kmsPath) {
+			return fmt.Errorf("invalid path in backup: %s", header.Name)
+		}
+
+		// Read content
+		content := make([]byte, header.Size)
+		if _, err := io.ReadFull(tarReader, content); err != nil {
+			return fmt.Errorf("failed to read file content: %w", err)
+		}
+
+		// Write file
+		if err := os.WriteFile(targetPath, content, 0600); err != nil {
+			return fmt.Errorf("failed to write restored file: %w", err)
+		}
+	}
+
+	// Reload keys
+	if err := m.kms.loadKeys(); err != nil {
+		return fmt.Errorf("failed to reload keys after restore: %w", err)
+	}
+
+	logger.Info("KMS backup restored successfully",
+		"path", backupPath,
+		"node", m.nodeID,
+		"timestamp", time.Now().UTC().Format(time.RFC3339),
+	)
+
+	return nil
 }

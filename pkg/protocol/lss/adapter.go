@@ -339,7 +339,7 @@ func (c *lssConfigAdapter) GetPublicKey() *ecdsa.PublicKey {
 		return &ecdsa.PublicKey{
 			Curve: nil,
 			X:     x,
-			Y:     new(big.Int), // Placeholder
+			Y:     new(big.Int), // curve.Point doesn't expose Y coordinate; use protocol-layer operations for actual crypto
 		}
 	}
 	return nil

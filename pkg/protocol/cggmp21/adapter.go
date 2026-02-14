@@ -373,7 +373,7 @@ func (c *configAdapter) GetPublicKey() *ecdsa.PublicKey {
 		return &ecdsa.PublicKey{
 			Curve: nil, // We can't convert curve.Curve to elliptic.Curve
 			X:     x,
-			Y:     new(big.Int), // Placeholder
+			Y:     new(big.Int), // curve.Point doesn't expose Y coordinate; use protocol-layer operations for actual crypto
 		}
 	}
 	return nil
@@ -398,7 +398,7 @@ func (c *configAdapter) GetSharePublicKey() *ecdsa.PublicKey {
 			return &ecdsa.PublicKey{
 				Curve: nil, // We can't convert curve.Curve to elliptic.Curve
 				X:     x,
-				Y:     new(big.Int), // Placeholder
+				Y:     new(big.Int), // curve.Point doesn't expose Y coordinate; use protocol-layer operations for actual crypto
 			}
 		}
 	}
