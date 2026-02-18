@@ -1,143 +1,61 @@
-# LLM.md - Hanzo MPC Signer Architecture & Development Guide
+# MPC Signer - LLM Context
 
-This document provides comprehensive guidance for AI assistants working with the Hanzo MPC (Multi-Party Computation) codebase.
+## Overview
 
-## 📚 Overview
+Threshold signing service. Pluggable signer backend for Hanzo KMS.
 
-Hanzo MPC is a threshold signing service that provides:
-- **ECDSA (secp256k1)** for Bitcoin/Ethereum/EVM chains
-- **EdDSA (Ed25519)** for Solana/Polkadot/Sui
-- **Threshold signatures** (t-of-n) with CGGMP21 protocol
-- **Key resharing** for rotation without changing addresses
+- **ECDSA (secp256k1)**: CGGMP21 protocol -- Bitcoin, Ethereum, EVM, XRPL, Lux
+- **ECDSA (secp256k1) Taproot**: FROST protocol -- Bitcoin Taproot
+- **EdDSA (Ed25519)**: FROST (Taproot mode) -- Solana/TON partial support
+- **LSS**: Dynamic resharing (change T-of-N without key reconstruction)
+- Threshold: default t = floor(n/2) + 1
 
-### Architecture Position
-
-Hanzo MPC is designed as a **pluggable signer backend** for Hanzo KMS:
+## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                      Hanzo KMS (Control Plane)                  │
-│  ┌──────────┬─────────────┬──────────────┬─────────────────┐    │
-│  │ Policy   │ Approvals   │  Audit Log   │  Key Registry   │    │
-│  └────┬─────┴──────┬──────┴───────┬──────┴───────┬─────────┘    │
-│       │            │              │              │              │
-│  ┌────▼────────────▼──────────────▼──────────────▼─────────┐    │
-│  │              Unified Signing API                         │    │
-│  └────┬────────────┬──────────────┬──────────────┬─────────┘    │
-│       │            │              │              │              │
-│  ┌────▼────┐  ┌────▼────┐   ┌─────▼─────┐  ┌─────▼─────┐        │
-│  │  HSM    │  │  MPC    │   │  Software │  │  Remote   │        │
-│  │ Signer  │  │ Signer  │   │  Signer   │  │  Signer   │        │
-│  └─────────┘  └─────────┘   └───────────┘  └───────────┘        │
-└─────────────────────────────────────────────────────────────────┘
+KMS (Control Plane): Policy, Approvals, Audit, Key Registry, Unified Signing API
+  |
+  +-- HSM Signer
+  +-- MPC Signer (this project) -- DKG, threshold signing, reshare
+  +-- Software Signer
+  +-- Remote Signer
 ```
 
-### Product Architecture
+## Project Structure
 
-1. **Hanzo KMS Platform** (Control Plane)
-   - Key registry + metadata
-   - Policy + workflow (quorum, time locks, spend limits, allowlists)
-   - Audit log
-   - Unified API
-   - Secrets manager
+```
+mpc/
+  cmd/hanzo-mpc/       Main node binary
+  cmd/hanzo-mpc-cli/   CLI tools
+  pkg/
+    mpc/               TSS implementation (CGGMP21, FROST, LSS)
+    kvstore/           BadgerDB storage (AES-256 encrypted)
+    messaging/         NATS JetStream (pub/sub + P2P)
+    identity/          Ed25519 node identity (Age encrypted)
+    client/            Go client library
+    policy/            Policy engine (signers, limits, whitelist, FHE)
+    threshold/         ThresholdVM (policy enforcement in signing)
+    storage/           BadgerDB store + S3 backup client
+    eventconsumer/     Event processing
+  contracts/           ThresholdPolicy.sol (on-chain policy)
+  deploy/              compose.yml with full stack
+  e2e/                 End-to-end tests
+```
 
-2. **Hanzo MPC Signer** (This Project - Data Plane)
-   - DKG / key share management
-   - Threshold signing sessions
-   - Reshare/rotate shares
-   - Optional hardware-rooted modes
+## Quick Start
 
-3. **Hanzo HSM** (Alternative Signer)
-   - HSM-backed keys for classic KMS workloads
-   - HSM-sealed share storage for MPC nodes
-
-4. **Hanzo Treasury** (Optional UI)
-   - Transaction building + chain adapters
-   - Simulation / policy previews
-   - Approvals UI (backed by KMS workflow engine)
-
-## 🚀 Quick Start
-
-### Build and Install
 ```bash
-# Build binaries
 make build
-
-# Or install directly
-go install ./cmd/hanzo-mpc
-go install ./cmd/hanzo-mpc-cli
-```
-
-### Basic Usage
-```bash
-# Generate peers configuration
 hanzo-mpc-cli generate-peers -n 3
-
-# Register peers to Consul
 hanzo-mpc-cli register-peers
-
-# Generate event initiator
 hanzo-mpc-cli generate-initiator
-
-# Generate node identity
 hanzo-mpc-cli generate-identity --node node0
-
-# Start MPC node
 hanzo-mpc start -n node0
 ```
 
-## 📁 Project Structure
-
-```
-/Users/z/work/hanzo/mpc/
-├── cmd/                    # Command-line applications
-│   ├── hanzo-mpc/         # Main MPC node binary
-│   └── hanzo-mpc-cli/     # CLI tools for configuration
-├── pkg/                    # Core packages
-│   ├── client/            # Go client library
-│   ├── mpc/               # MPC implementation (TSS)
-│   ├── kvstore/           # BadgerDB storage
-│   ├── messaging/         # NATS messaging
-│   ├── identity/          # Ed25519 identity management
-│   └── eventconsumer/     # Event processing
-├── e2e/                    # End-to-end tests
-├── examples/               # Usage examples
-└── scripts/                # Utility scripts
-```
-
-## 🏗️ Core Components
-
-### 1. MPC Engine
-Based on threshold cryptography:
-- **CGGMP21** protocol for ECDSA (secp256k1) - **IMPLEMENTED & TESTED**
-- **FROST** protocol for EdDSA (Ed25519) - **IMPLEMENTED & TESTED** (keygen generates both ECDSA and EdDSA keys)
-- Configurable threshold (t-of-n)
-- Default: t = ⌊n/2⌋ + 1 (majority)
-
-### 2. Storage Layer: BadgerDB
-- AES-256 encrypted key shares
-- Session data persistence
-- Automatic backups
-
-### 3. Messaging: NATS JetStream
-- Pub/sub for broadcasts
-- Direct messaging for P2P
-- Message persistence
-
-### 4. Service Discovery: Consul
-- Node registration
-- Health checking
-- Configuration management
-
-### 5. Identity: Ed25519 keypairs
-- Node authentication
-- Message signing/verification
-- Encrypted with Age
-
-## 🔧 Configuration
+## Config
 
 ```yaml
-# config.yaml
 environment: development
 consul:
   address: localhost:8500
@@ -147,323 +65,76 @@ badger_password: "secure-password"
 event_initiator_pubkey: "hex-encoded-pubkey"
 ```
 
-### Environment Variables
-- `HANZO_MPC_CONFIG` - Path to config.yaml
-- `HANZO_MPC_BACKUP` - Backup file identifier
+Env vars: `HANZO_MPC_CONFIG` (config path), `HANZO_MPC_BACKUP` (backup ID).
 
-## 🔐 Security Model
-
-- **Threshold Security**: No single node has the complete key
-- **Message Authentication**: All messages signed with Ed25519
-- **Storage Encryption**: BadgerDB encrypted with user password
-- **Network Security**: TLS + mutual authentication
-- **Key Rotation**: Supports resharing without changing addresses
-
-## 📊 Performance
-
-- **Key Generation**: ~30s for 3 nodes
-- **Signing**: <1s for threshold signatures
-- **Storage**: ~100MB per node (with backups)
-- **Network**: Low bandwidth, resilient to failures
-
-## 🔗 Integration with Hanzo Commerce
-
-The MPC Signer integrates with Commerce for crypto payments:
-
-```go
-// Commerce uses MPC via the processor interface
-type MPCProcessor struct {
-    kmsClient  *kms.Client   // Hanzo KMS for policy/approval
-    mpcClient  *mpc.Client   // Hanzo MPC for signing
-}
-
-func (p *MPCProcessor) Charge(ctx context.Context, req PaymentRequest) (*PaymentResult, error) {
-    // 1. KMS validates policy and approvals
-    // 2. MPC signs the transaction
-    // 3. Transaction broadcast to blockchain
-}
-```
-
-## 🔧 Development Workflow
-
-### Testing
-```bash
-# Run unit tests
-make test
-
-# Run with coverage
-make test-coverage
-
-# Run E2E tests
-make e2e-test
-```
-
-### Common Tasks
-
-1. **Generate 3-node test cluster**:
-   ```bash
-   ./setup_identities.sh
-   ```
-
-2. **Recover from backup**:
-   ```bash
-   hanzo-mpc-cli recover --backup-dir ./backups --recovery-path ./recovered-db
-   ```
-
-3. **Production deployment**:
-   - Use `--encrypt` flag for identity generation
-   - Enable TLS on all services
-   - Use `--prompt-credentials` to avoid hardcoded passwords
-
-## 🐛 Common Issues
-
-1. **Port conflicts**: Default ports are 4222 (NATS), 8500 (Consul)
-2. **Database locks**: Ensure single process per node
-3. **Network delays**: Check NATS/Consul connectivity
-4. **Backup failures**: Verify disk space and permissions
-
-### CGGMP21 Protocol Issues (Debugged Jan 2026)
-
-5. **Protocol message serialization**: Protocol messages MUST use `MarshalBinary/UnmarshalBinary` to preserve all fields (SSID, RoundNumber, etc.). Raw JSON marshaling loses critical protocol state.
-
-6. **Party ID ordering**: Party IDs must be sorted consistently across all nodes. The `GetReadyPeersIncludeSelf()` function in `registry.go` sorts peer IDs to ensure deterministic ordering.
-
-7. **NATS topic naming**: Result topics must match JetStream stream configuration:
-   - Keygen results: `mpc.mpc_keygen_result.<walletID>` (note the `mpc.mpc_` prefix)
-   - Signing results: `mpc.mpc_signing_result.<walletID>`
-   - Stream expects pattern: `mpc.mpc_*_result.*`
-
-8. **Self-message rejection**: It's NORMAL for nodes to log "Handler cannot accept message" warnings when they receive their own broadcast messages back. This is expected behavior in pub/sub systems.
-
-9. **Binary rebuild for e2e tests**: E2E tests use `hanzo-mpc` from PATH. After code changes, run `go install ./cmd/hanzo-mpc && go install ./cmd/hanzo-mpc-cli` to update the installed binaries.
-
-10. **Session result publishing pattern**: Individual protocol sessions (CGGMP21, FROST) should NOT publish success events directly to the result queue. The handler (`keygen_handler_cggmp21.go`) is responsible for publishing the combined result with both ECDSA and EdDSA keys. Sessions should only:
-    - Publish FAILURE events to the queue (for immediate error notification)
-    - Send success pubkey via `externalFinishChan` so `WaitForFinish()` returns
-    - Always send to `externalFinishChan` (even empty string for errors) to prevent blocking
-
-11. **Dual keygen architecture**: The `handleKeyGenEventCGGMP21` function runs both ECDSA (CGGMP21) and EdDSA (FROST) keygen protocols in parallel via goroutines with WaitGroup. Both sessions must complete before the handler publishes the combined result containing both public keys.
-
-### FROST Signing Issues (Debugged Jan 2026)
-
-12. **FROST config serialization (CRITICAL)**: `frost.TaprootConfig` contains crypto types (`*curve.Secp256k1Scalar`, `*curve.Secp256k1Point`) that **do NOT have JSON marshalers**. Using `json.Marshal()` corrupts the key shares. **MUST use CBOR serialization** via `MarshalFROSTConfig()` and `UnmarshalFROSTConfig()` in `frost_config_marshal.go`.
-
-13. **FROST signing result type**: The FROST Taproot signing protocol returns `taproot.Signature` (which is `[]byte` of 64 bytes), NOT `*frost.Signature`. The `signing_session_frost.go` handles this correctly with: `s.signature = result.(taproot.Signature)`.
-
-14. **BIP-340/Taproot signature format**: FROST signing produces BIP-340 compatible signatures (64 bytes: R_x || s). The `taproot.Signature` type is already in this format, so no additional conversion is needed in `publishResult()`.
-
-### LSS Protocol Issues (Fixed Jan 2026)
-
-15. **LSS config serialization (CRITICAL - FIXED)**: Similar to FROST, `lssConfig.Config` contains crypto types (`curve.Scalar`, `curve.Point`) that **do NOT have JSON marshalers**. Fixed by implementing `MarshalLSSConfig()` and `UnmarshalLSSConfig()` in `lss_config_marshal.go` using CBOR serialization.
-
-16. **LSS capabilities vs CGGMP21**: LSS supports dynamic resharing (change T-of-N without reconstructing keys), threshold changes, and adding/removing participants. CGGMP21 only supports refresh (same committee). Both produce valid ECDSA signatures.
-
-### Security Audit Findings (Jan 2026)
-
-17. **Message authentication**: Protocol messages between nodes are not signed. Ed25519 signing code exists but is disabled. Consider re-enabling for production deployments.
-
-18. **Deduplication map cleanup**: The `processing` map used for deduplication grows unbounded. Recommend adding TTL-based cleanup for long-running sessions.
-
-19. **Protocol timeouts**: No timeout enforcement on protocol handlers. Recommend adding context with timeout to prevent indefinite hangs from stalling parties.
-
-## 🌐 Blockchain Support
-
-| Blockchain | Support | Curve | Protocol |
-|------------|---------|-------|----------|
-| Bitcoin (Legacy/SegWit) | ✅ Full | secp256k1 | CGGMP21/LSS |
-| Bitcoin (Taproot) | ✅ Full | secp256k1 | FROST |
-| Ethereum/EVM | ✅ Full | secp256k1 | CGGMP21/LSS |
-| XRPL (XRP Ledger) | ✅ Full | secp256k1 | CGGMP21/LSS |
-| Lux Network | ✅ Full | secp256k1 | CGGMP21/LSS |
-| Solana | ⚠️ Partial | Ed25519 | FROST (Taproot mode) |
-| TON | ⚠️ Partial | Ed25519 | FROST (Taproot mode) |
-
-**Note**: Solana/TON use Ed25519 natively but our FROST implementation produces Taproot/BIP-340 signatures. Native Ed25519 support requires implementing the Ed25519 FROST variant.
-
-## 🔒 Policy Engine & Private Policies (Added Jan 2026)
-
-### Policy Package (`pkg/policy/`)
-
-Fireblocks/Utila-style policy engine for transaction governance:
-
-| File | Purpose |
-|------|---------|
-| `policy.go` | Full policy engine with signers, roles, spending limits |
-| `approval.go` | Approval workflow and multi-signer authorization |
-| `private_policy.go` | TFHE-powered private policy evaluation |
-
-**Key Features:**
-- **Signers & Roles**: ADMIN, SIGNER, VIEWER with customizable permissions
-- **Spending Limits**: Per-transaction, daily, monthly limits by asset
-- **Whitelist/Blacklist**: Address-based transaction filtering
-- **Time Windows**: Business hours enforcement
-- **Rate Limiting**: Velocity controls
-
-### ThresholdVM (`pkg/threshold/policy_vm.go`)
-
-Protocol-level policy enforcement within MPC signing:
-
-```go
-// ThresholdVM evaluates policies cryptographically before signature shares
-vm := NewThresholdVM(ThresholdVMConfig{
-    NodeID:       "mpc-node-0",
-    Threshold:    2,
-    TotalNodes:   3,
-    FHEPublicKey: fhePublicKey, // Optional for private rules
-    FHEServerKey: fheServerKey,
-})
-
-// Policies verified before any signature share produced
-share, err := vm.VerifyAndSign(ctx, req, keyShare)
-```
-
-**Rule Opcodes:**
-- `0x01-0x04`: Amount comparisons (LT, GT, Range, Cumulative)
-- `0x10-0x12`: Address checks (Whitelist, Blacklist, Source)
-- `0x20-0x22`: Time operations (Window, TimeLock, Cooldown)
-- `0x30-0x32`: Approval operations (Signatures, Quorum, Group)
-- `0x40-0x42`: Vesting/Streaming (VestingUnlock, StreamRate, Cliff)
-- `0x80-0x83`: TFHE private operations (PrivateAmountLT/GT, Cumulative, Whitelist)
-
-### Private Policy with FHE
-
-The `FHEEngine` interface allows plugging in any FHE implementation:
-
-```go
-type FHEEngine interface {
-    Encrypt64(value uint64) EncryptedValue
-    EncryptBool(value bool) EncryptedValue
-    Lt64(a, b EncryptedValue) EncryptedValue
-    Gt64(a, b EncryptedValue) EncryptedValue
-    And(a, b EncryptedValue) EncryptedValue
-    // ... more operations
-}
-```
-
-**Integration with luxfi/fhe:**
-```go
-// Create adapter for github.com/luxfi/fhe
-type LuxFHEAdapter struct {
-    serverKey *fhe.ServerKey
-    publicKey *fhe.PublicKey
-}
-
-func (a *LuxFHEAdapter) Encrypt64(v uint64) EncryptedValue { ... }
-func (a *LuxFHEAdapter) Lt64(x, y EncryptedValue) EncryptedValue { ... }
-```
-
-### Solidity Policy Contract (`contracts/ThresholdPolicy.sol`)
-
-On-chain policy definition compatible with ThresholdVM:
-
-```solidity
-// Register policy for MPC wallet
-thresholdPolicy.registerPolicy(walletId, signers, requiredSigs, expiresAt);
-
-// Configure vesting schedule
-thresholdPolicy.configureVesting(walletId, totalAmount, startTime, duration, cliff);
-
-// Configure streaming payments
-thresholdPolicy.configureStream(walletId, ratePerSecond, startTime);
-
-// Get policy hash for MPC verification
-bytes32 policyHash = thresholdPolicy.computePolicyHash(walletId);
-```
-
-## 📦 Storage & Backup (`pkg/storage/`)
-
-### BadgerDB Store (`badger_store.go`)
-
-Native BadgerDB with encryption and backup support:
-
-```go
-store, _ := NewBadgerStore(cfg)
-defer store.Close()
-
-// Full backup
-version, _ := store.Backup(writer)
-
-// Incremental backup since version
-newVersion, _ := store.BackupSince(writer, lastVersion)
-
-// Restore from backup
-store.Load(reader)
-```
-
-### S3 Backup Client (`s3_backup.go`)
-
-S3-compatible backup for MinIO/Hanzo Storage:
-
-```go
-client, _ := NewS3BackupClient(S3Config{
-    Endpoint:    "http://minio:9000",
-    Bucket:      "mpc-backups",
-    AccessKeyID: "luxadmin",
-    SecretKey:   "luxsecret123",
-    Region:      "us-east-1",
-})
-
-// Backup to S3
-client.UploadFromStore(ctx, store, "node-0/daily", false, 0)
-
-// Automatic scheduled backups
-scheduler := NewBackupScheduler(client, store, "node-0", 3600)
-scheduler.Start(ctx)
-```
-
-## 🐳 Deployment (`deploy/`)
-
-### Docker Compose Stack
-
-Full deployment stack in `deploy/compose.yml`:
+## Deploy Stack (`deploy/compose.yml`)
 
 | Service | Port | Purpose |
 |---------|------|---------|
-| `lux-mpc-{0,1,2}` | 6000-6002 | MPC signing nodes |
-| `lux-kms` | 8080 | Key management service |
-| `nats` | 4222 | Message broker |
-| `consul` | 8500 | Service discovery |
-| `minio` | 9000 | S3-compatible backup storage |
-| `postgres` | 5432 | KMS database |
-| `redis` | 6379 | Caching |
-| `prometheus` | 9093 | Metrics (optional) |
-| `grafana` | 3001 | Dashboards (optional) |
+| lux-mpc-{0,1,2} | 6000-6002 | MPC nodes |
+| lux-kms | 8080 | Key management |
+| nats | 4222 | Message broker |
+| consul | 8500 | Service discovery |
+| minio | 9000 | S3 backup storage |
 
-### Makefile Commands
+## Testing
 
 ```bash
-make setup          # Create config files and directories
-make gen-keys       # Generate encryption keys
-make up             # Start all services
-make up-monitoring  # Start with Prometheus/Grafana
-make status         # Check service health
-make backup         # Trigger S3 backup
-make backup-local   # Local backup
-make keygen WALLET_ID=xxx  # Generate MPC keys
-make sign WALLET_ID=xxx MESSAGE=xxx  # Sign message
+make test            # Unit tests
+make test-coverage   # With coverage
+make e2e-test        # End-to-end
 ```
 
-## 🎯 Best Practices
+## Critical Gotchas (Debugged Jan 2026)
 
-1. **Always backup** BadgerDB before major operations
-2. **Test locally** with 3-node setup before production
-3. **Monitor health** via Consul UI (http://localhost:8500)
-4. **Rotate keys** periodically using reshare functionality
-5. **Use Age encryption** for production identities
-6. **Keep logs** for debugging MPC rounds
+### Serialization
+- Protocol messages MUST use `MarshalBinary/UnmarshalBinary`, NOT JSON (loses SSID, RoundNumber)
+- FROST `TaprootConfig` crypto types have NO JSON marshalers -- MUST use CBOR via `MarshalFROSTConfig()`/`UnmarshalFROSTConfig()`
+- LSS `lssConfig.Config` same issue -- use CBOR via `MarshalLSSConfig()`/`UnmarshalLSSConfig()`
 
-## Context for All AI Assistants
+### Protocol Behavior
+- Party IDs must be sorted consistently (`GetReadyPeersIncludeSelf()` handles this)
+- "Handler cannot accept message" warnings are NORMAL (nodes receiving own broadcasts)
+- FROST signing returns `taproot.Signature` (64-byte `[]byte`), NOT `*frost.Signature`
+- BIP-340 format (R_x || s) needs no conversion
 
-This file (`LLM.md`) is symlinked as:
-- `.AGENTS.md`
-- `CLAUDE.md`
-- `QWEN.md`
-- `GEMINI.md`
+### Result Publishing
+- Sessions must NOT publish success to result queue -- handler publishes combined ECDSA+EdDSA result
+- Sessions publish FAILURE directly for immediate notification
+- Sessions send success via `externalFinishChan`; always send (even empty on error) to prevent blocking
+- Dual keygen runs ECDSA (CGGMP21) and EdDSA (FROST) in parallel via goroutines+WaitGroup
 
-All files reference the same knowledge base. Updates here propagate to all AI systems.
+### NATS Topics
+- Keygen: `mpc.mpc_keygen_result.<walletID>` (note `mpc.mpc_` prefix)
+- Signing: `mpc.mpc_signing_result.<walletID>`
+- Stream pattern: `mpc.mpc_*_result.*`
 
-## Rules for AI Assistants
+### E2E Tests
+- Tests use `hanzo-mpc` from PATH -- run `go install ./cmd/hanzo-mpc && go install ./cmd/hanzo-mpc-cli` after code changes
 
-1. **ALWAYS** update LLM.md with significant discoveries
-2. **NEVER** commit symlinked files (.AGENTS.md, CLAUDE.md, etc.) - they're in .gitignore
-3. **NEVER** create random summary files - update THIS file
+## Security Audit Findings (Jan 2026)
+
+1. Protocol messages between nodes are NOT signed (Ed25519 code exists but disabled)
+2. Deduplication `processing` map grows unbounded -- needs TTL cleanup
+3. No timeout on protocol handlers -- needs context with deadline
+
+## Policy Engine (`pkg/policy/`)
+
+Fireblocks/Utila-style transaction governance:
+- Signers and roles (ADMIN, SIGNER, VIEWER)
+- Spending limits (per-tx, daily, monthly by asset)
+- Whitelist/blacklist, time windows, rate limiting
+- ThresholdVM (`pkg/threshold/policy_vm.go`): evaluates policies before signature shares
+- FHE private policies via pluggable `FHEEngine` interface (compatible with luxfi/fhe)
+
+## Blockchain Support
+
+| Chain | Curve | Protocol | Status |
+|-------|-------|----------|--------|
+| Bitcoin (Legacy/SegWit) | secp256k1 | CGGMP21/LSS | Full |
+| Bitcoin (Taproot) | secp256k1 | FROST | Full |
+| Ethereum/EVM | secp256k1 | CGGMP21/LSS | Full |
+| XRPL | secp256k1 | CGGMP21/LSS | Full |
+| Lux Network | secp256k1 | CGGMP21/LSS | Full |
+| Solana | Ed25519 | FROST (Taproot) | Partial -- needs native Ed25519 FROST |
+| TON | Ed25519 | FROST (Taproot) | Partial -- needs native Ed25519 FROST |
