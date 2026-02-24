@@ -1,5 +1,8 @@
-# Build stage
-FROM golang:1.25-alpine AS builder
+# Build stage - uses Go's native cross-compilation (no QEMU needed)
+FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
+
+ARG TARGETARCH
+ARG TARGETOS=linux
 
 RUN apk add --no-cache git make
 
@@ -14,9 +17,9 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the binaries
-RUN go build -o hanzo-mpc ./cmd/hanzo-mpc
-RUN go build -o hanzo-mpc-cli ./cmd/hanzo-mpc-cli
+# Cross-compile for target platform using Go's native support
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o hanzo-mpc ./cmd/hanzo-mpc
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o hanzo-mpc-cli ./cmd/hanzo-mpc-cli
 
 # Runtime stage
 FROM alpine:latest
