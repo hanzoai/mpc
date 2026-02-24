@@ -24,6 +24,8 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o hanzo-mpc-cl
 # Runtime stage
 FROM alpine:latest
 
+LABEL org.opencontainers.image.source="https://github.com/hanzoai/mpc"
+
 RUN apk add --no-cache ca-certificates curl bash
 
 WORKDIR /app
