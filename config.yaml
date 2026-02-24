@@ -12,3 +12,36 @@ db_path: "."
 backup_enabled: true
 backup_period_seconds: 300 # 5 minutes
 backup_dir: backups
+
+# HSM provider for key management
+# Options: file (default), aws, gcp, azure, zymbit, kms
+hsm:
+  provider: file
+  file:
+    base_path: "."
+    hex_encoded: true
+  # aws:
+  #   region: us-east-1
+  #   key_arn: arn:aws:kms:us-east-1:123456:key/abc-def
+  #   custom_key_store: ""  # CloudHSM cluster ID
+  # gcp:
+  #   project: my-project
+  #   location: us-east1
+  #   key_ring: mpc-keys
+  #   key_name: initiator
+  #   hsm_level: HSM  # HSM or SOFTWARE
+  # azure:
+  #   vault_url: https://mpc-hsm.managedhsm.azure.net
+  #   key_name: initiator
+  #   use_managed_identity: true
+  # zymbit:
+  #   api_endpoint: http://localhost:9080
+  #   slot_id: 0
+  #   key_type: ed25519
+  # kms:
+  #   site_url: https://kms.hanzo.ai
+  #   client_id: ""      # Machine Identity
+  #   client_secret: ""
+  #   project_id: ""
+  #   environment: prod
+  #   secret_path: /mpc
