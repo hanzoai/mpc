@@ -40,6 +40,8 @@ func NewServer(cfg Config) *Server {
 	mux.HandleFunc("GET /{$}", s.handleLanding)
 	mux.HandleFunc("GET /health", s.handleHealth)
 	mux.HandleFunc("GET /readyz", s.handleHealth)
+	mux.HandleFunc("GET /auth/callback", s.handleAuthCallback)
+	mux.HandleFunc("GET /dashboard", s.handleDashboard)
 
 	// Protected endpoints (IAM auth required)
 	authed := s.iam.Wrap(http.HandlerFunc(s.routeAPI))
@@ -196,7 +198,7 @@ footer a:hover{color:#666;text-decoration:none}
     <a href="#chains">Chains</a>
     <a href="#performance">Performance</a>
     <a href="https://hanzo.ai/docs/mpc">Docs</a>
-    <a href="https://hanzo.id" class="btn btn-primary btn-sm">Sign In</a>
+    <a href="#" onclick="startLogin()" class="btn btn-primary btn-sm">Sign In</a>
   </div>
 </div>
 </header>
@@ -207,7 +209,7 @@ footer a:hover{color:#666;text-decoration:none}
   <h1>Digital Asset Custody<br><span>Without Compromise</span></h1>
   <p class="subtitle">Enterprise-grade multi-party computation with 8 cryptographic protocols, configurable t-of-n thresholds, multi-chain support, and post-quantum security. Your keys never exist in a single location.</p>
   <div class="ctas">
-    <a href="https://hanzo.id" class="btn btn-primary">Get Started with Hanzo ID</a>
+    <a href="#" onclick="startLogin()" class="btn btn-primary">Get Started with Hanzo ID</a>
     <a href="/health" class="btn btn-outline">API Status</a>
     <a href="https://github.com/hanzoai/mpc" class="btn btn-outline">GitHub</a>
   </div>
@@ -391,7 +393,7 @@ footer a:hover{color:#666;text-decoration:none}
   <h2>Ready to secure your digital assets?</h2>
   <p>Get started with Hanzo MPC in minutes. Self-hosted or managed.</p>
   <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
-    <a href="https://hanzo.id" class="btn btn-primary">Sign In with Hanzo ID</a>
+    <a href="#" onclick="startLogin()" class="btn btn-primary">Sign In with Hanzo ID</a>
     <a href="https://hanzo.industries/contact" class="btn btn-outline">Contact Sales</a>
     <a href="https://hanzo.ai/docs/mpc" class="btn btn-outline">Read the Docs</a>
   </div>
@@ -409,6 +411,383 @@ footer a:hover{color:#666;text-decoration:none}
   </div>
 </div>
 </footer>
+<script>
+// PKCE OAuth — client-side, no backend secret needed
+const IAM_URL = 'https://hanzo.id';
+const CLIENT_ID = 'hanzo-app-client-id';
+const REDIRECT_URI = location.origin + '/auth/callback';
+const SCOPE = 'openid profile email';
+
+function generateCodeVerifier() {
+  const arr = new Uint8Array(32);
+  crypto.getRandomValues(arr);
+  return btoa(String.fromCharCode(...arr)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+async function sha256(plain) {
+  const enc = new TextEncoder().encode(plain);
+  const hash = await crypto.subtle.digest('SHA-256', enc);
+  return btoa(String.fromCharCode(...new Uint8Array(hash))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+async function startLogin() {
+  const verifier = generateCodeVerifier();
+  const challenge = await sha256(verifier);
+  sessionStorage.setItem('pkce_verifier', verifier);
+  const state = crypto.randomUUID();
+  sessionStorage.setItem('oauth_state', state);
+  const params = new URLSearchParams({
+    client_id: CLIENT_ID,
+    redirect_uri: REDIRECT_URI,
+    response_type: 'code',
+    scope: SCOPE,
+    code_challenge: challenge,
+    code_challenge_method: 'S256',
+    state: state,
+  });
+  location.href = IAM_URL + '/login/oauth/authorize?' + params;
+}
+// Check if already logged in
+if (localStorage.getItem('mpc_token')) {
+  const btn = document.querySelector('.nav-links a[onclick]');
+  if (btn) { btn.textContent = 'Dashboard'; btn.setAttribute('onclick', "location.href='/dashboard'"); }
+}
+</script>
+</body>
+</html>`
+
+// --- Auth ---
+
+func (s *Server) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(authCallbackHTML))
+}
+
+func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(dashboardHTML))
+}
+
+const authCallbackHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hanzo MPC — Authenticating...</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;color:#d4d4d4;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center}
+.card{border:1px solid #1a1a1a;border-radius:12px;padding:48px;max-width:420px;text-align:center}
+h1{color:#fff;font-size:20px;margin-bottom:12px}
+p{color:#666;font-size:14px;line-height:1.6}
+.spinner{width:32px;height:32px;border:3px solid #1a1a1a;border-top-color:#fff;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 24px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.error{color:#dc2626;margin-top:16px;display:none}
+a{color:#fff;text-decoration:underline}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="spinner" id="spinner"></div>
+  <h1>Authenticating...</h1>
+  <p id="status">Exchanging authorization code with Hanzo ID</p>
+  <p class="error" id="error"></p>
+</div>
+<script>
+const IAM_URL = 'https://hanzo.id';
+const CLIENT_ID = 'hanzo-app-client-id';
+const REDIRECT_URI = location.origin + '/auth/callback';
+
+async function handleCallback() {
+  const params = new URLSearchParams(location.search);
+  const code = params.get('code');
+  const state = params.get('state');
+  const error = params.get('error');
+
+  // Check for direct token (from worker flow)
+  const accessToken = params.get('access_token');
+  if (accessToken) {
+    localStorage.setItem('mpc_token', accessToken);
+    localStorage.setItem('mpc_refresh_token', params.get('refresh_token') || '');
+    location.href = '/dashboard';
+    return;
+  }
+
+  if (error) {
+    showError(params.get('error_description') || error);
+    return;
+  }
+
+  if (!code) {
+    showError('No authorization code received');
+    return;
+  }
+
+  // Verify state
+  const savedState = sessionStorage.getItem('oauth_state');
+  if (savedState && state !== savedState) {
+    showError('State mismatch — possible CSRF attack');
+    return;
+  }
+
+  // Exchange code with PKCE (no secret needed)
+  const verifier = sessionStorage.getItem('pkce_verifier');
+  try {
+    const body = new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: code,
+      client_id: CLIENT_ID,
+      redirect_uri: REDIRECT_URI,
+    });
+    if (verifier) body.set('code_verifier', verifier);
+
+    const resp = await fetch(IAM_URL + '/api/login/oauth/access_token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+      body: body,
+    });
+    const data = await resp.json();
+
+    if (data.access_token) {
+      localStorage.setItem('mpc_token', data.access_token);
+      localStorage.setItem('mpc_refresh_token', data.refresh_token || '');
+      sessionStorage.removeItem('pkce_verifier');
+      sessionStorage.removeItem('oauth_state');
+      location.href = '/dashboard';
+    } else {
+      showError(data.error_description || data.error || 'Token exchange failed');
+    }
+  } catch (e) {
+    showError('Network error: ' + e.message);
+  }
+}
+
+function showError(msg) {
+  document.getElementById('spinner').style.display = 'none';
+  document.getElementById('status').textContent = 'Authentication failed';
+  const el = document.getElementById('error');
+  el.style.display = 'block';
+  el.innerHTML = msg + '<br><br><a href="/">Back to home</a>';
+}
+
+handleCallback();
+</script>
+</body>
+</html>`
+
+const dashboardHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hanzo MPC — Dashboard</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;color:#d4d4d4;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;min-height:100vh;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
+a{color:#fff;text-decoration:none}
+a:hover{text-decoration:underline}
+.container{max-width:1080px;margin:0 auto;padding:0 24px;width:100%}
+header{border-bottom:1px solid #1a1a1a;padding:16px 0;background:#000}
+header .container{display:flex;align-items:center;justify-content:space-between}
+.logo{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:600;color:#fff;letter-spacing:-0.02em}
+.logo svg{width:26px;height:26px}
+.nav-links{display:flex;gap:16px;align-items:center}
+.nav-links a{color:#666;font-size:14px}
+.nav-links a:hover{color:#fff}
+.btn{display:inline-flex;align-items:center;padding:8px 20px;border-radius:6px;font-size:14px;font-weight:500;transition:all 0.15s;cursor:pointer;border:none}
+.btn-primary{background:#fff;color:#000}
+.btn-primary:hover{background:#d4d4d4}
+.btn-outline{border:1px solid #333;color:#fff;background:transparent}
+.btn-outline:hover{border-color:#666}
+.btn-sm{padding:6px 14px;font-size:13px}
+.btn-danger{background:#dc2626;color:#fff}
+.btn-danger:hover{background:#b91c1c}
+main{flex:1;padding:40px 0}
+h1{font-size:28px;font-weight:700;color:#fff;letter-spacing:-0.02em;margin-bottom:8px}
+.subtitle{color:#666;font-size:15px;margin-bottom:32px}
+.user-info{border:1px solid #1a1a1a;border-radius:8px;padding:24px;margin-bottom:32px}
+.user-info h3{color:#fff;font-size:15px;font-weight:600;margin-bottom:12px}
+.user-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #0a0a0a;font-size:14px}
+.user-row:last-child{border-bottom:none}
+.user-row .label{color:#525252}
+.user-row .value{color:#d4d4d4;font-family:monospace}
+.token-box{border:1px solid #1a1a1a;border-radius:8px;padding:24px;margin-bottom:32px}
+.token-box h3{color:#fff;font-size:15px;font-weight:600;margin-bottom:12px}
+.token-box p{color:#666;font-size:13px;margin-bottom:12px}
+.token-display{background:#050505;border:1px solid #1a1a1a;border-radius:6px;padding:12px 16px;font-family:monospace;font-size:13px;color:#a3a3a3;word-break:break-all;position:relative;cursor:pointer}
+.token-display:hover{border-color:#333}
+.copied{position:absolute;top:8px;right:12px;color:#22c55e;font-size:12px;opacity:0;transition:opacity 0.2s}
+.copied.show{opacity:1}
+.api-test{border:1px solid #1a1a1a;border-radius:8px;padding:24px;margin-bottom:32px}
+.api-test h3{color:#fff;font-size:15px;font-weight:600;margin-bottom:12px}
+.api-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.result{background:#050505;border:1px solid #1a1a1a;border-radius:6px;padding:16px;font-family:monospace;font-size:13px;color:#a3a3a3;white-space:pre-wrap;max-height:300px;overflow:auto;display:none}
+.wallets-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-top:16px}
+.wallet-card{border:1px solid #1a1a1a;border-radius:8px;padding:20px}
+.wallet-card h4{color:#fff;font-size:14px;margin-bottom:8px}
+.wallet-card .curve-badge{display:inline-block;padding:2px 8px;border:1px solid #333;border-radius:4px;font-size:11px;color:#a3a3a3;font-family:monospace;margin-bottom:8px}
+.wallet-card .id{color:#525252;font-size:12px;font-family:monospace;word-break:break-all}
+footer{border-top:1px solid #1a1a1a;padding:24px 0;margin-top:auto}
+footer .container{display:flex;justify-content:space-between;font-size:13px;color:#333}
+</style>
+</head>
+<body>
+<header>
+<div class="container">
+  <a href="/" class="logo">
+    <svg viewBox="0 0 67 67" xmlns="http://www.w3.org/2000/svg"><rect width="67" height="67" fill="#000"/><path d="M22.21 67V44.6369H0V67H22.21Z" fill="#fff"/><path d="M0 44.6369L22.21 46.8285V44.6369H0Z" fill="#ddd"/><path d="M66.7038 22.3184H22.2534L0.0878906 44.6367H44.4634L66.7038 22.3184Z" fill="#fff"/><path d="M22.21 0H0V22.3184H22.21V0Z" fill="#fff"/><path d="M66.7198 0H44.5098V22.3184H66.7198V0Z" fill="#fff"/><path d="M66.6753 22.3185L44.5098 20.0822V22.3185H66.6753Z" fill="#ddd"/><path d="M66.7198 67V44.6369H44.5098V67H66.7198Z" fill="#fff"/></svg>
+    Hanzo MPC
+  </a>
+  <div class="nav-links">
+    <a href="/">Home</a>
+    <a href="https://hanzo.ai/docs/mpc">Docs</a>
+    <a href="https://github.com/hanzoai/mpc">GitHub</a>
+    <a href="#" onclick="logout()" class="btn btn-outline btn-sm">Sign Out</a>
+  </div>
+</div>
+</header>
+
+<main>
+<div class="container">
+  <h1>MPC Dashboard</h1>
+  <p class="subtitle">Manage wallets, sign transactions, and monitor your MPC infrastructure.</p>
+
+  <div class="user-info" id="user-info" style="display:none">
+    <h3>Authenticated User</h3>
+    <div class="user-row"><span class="label">Name</span><span class="value" id="u-name">—</span></div>
+    <div class="user-row"><span class="label">Email</span><span class="value" id="u-email">—</span></div>
+    <div class="user-row"><span class="label">ID</span><span class="value" id="u-id">—</span></div>
+    <div class="user-row"><span class="label">Type</span><span class="value" id="u-type">—</span></div>
+  </div>
+
+  <div class="token-box">
+    <h3>API Bearer Token</h3>
+    <p>Use this token in the <code>Authorization: Bearer &lt;token&gt;</code> header for all API requests.</p>
+    <div class="token-display" id="token-display" onclick="copyToken()">
+      <span id="token-text">Loading...</span>
+      <span class="copied" id="copied-msg">Copied!</span>
+    </div>
+  </div>
+
+  <div class="api-test">
+    <h3>Quick Actions</h3>
+    <div class="api-actions">
+      <button class="btn btn-outline btn-sm" onclick="apiCall('GET','/api/v1/wallets')">List Wallets</button>
+      <button class="btn btn-primary btn-sm" onclick="createWallet('secp256k1')">+ secp256k1 Wallet</button>
+      <button class="btn btn-primary btn-sm" onclick="createWallet('ed25519')">+ Ed25519 Wallet</button>
+      <button class="btn btn-primary btn-sm" onclick="createWallet('bls12381')">+ BLS12-381 Wallet</button>
+      <button class="btn btn-outline btn-sm" onclick="apiCall('GET','/health')">Health Check</button>
+    </div>
+    <pre class="result" id="result"></pre>
+  </div>
+
+  <div id="wallets-section" style="display:none">
+    <h3 style="color:#fff;font-size:15px;font-weight:600;margin-bottom:4px">Wallets</h3>
+    <p style="color:#666;font-size:13px;margin-bottom:16px">Your MPC wallets across all supported curves.</p>
+    <div class="wallets-grid" id="wallets-grid"></div>
+  </div>
+</div>
+</main>
+
+<footer>
+<div class="container">
+  <span>&copy; 2026 Hanzo AI Inc.</span>
+  <a href="https://hanzo.ai" style="color:#333">hanzo.ai</a>
+</div>
+</footer>
+
+<script>
+const API_BASE = location.origin;
+const IAM_URL = 'https://hanzo.id';
+const token = localStorage.getItem('mpc_token');
+
+if (!token) {
+  location.href = '/';
+}
+
+// Show token
+document.getElementById('token-text').textContent = token ? (token.substring(0, 20) + '...' + token.substring(token.length - 10)) : 'No token';
+
+// Fetch user info
+async function loadUser() {
+  try {
+    const resp = await fetch(IAM_URL + '/api/userinfo', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (resp.ok) {
+      const user = await resp.json();
+      document.getElementById('u-name').textContent = user.displayName || user.name || '—';
+      document.getElementById('u-email').textContent = user.email || '—';
+      document.getElementById('u-id').textContent = user.id || user.sub || '—';
+      document.getElementById('u-type').textContent = user.type || 'user';
+      document.getElementById('user-info').style.display = 'block';
+    }
+  } catch (e) { console.error('Failed to load user:', e); }
+}
+
+function copyToken() {
+  navigator.clipboard.writeText(token || '');
+  const msg = document.getElementById('copied-msg');
+  msg.classList.add('show');
+  setTimeout(() => msg.classList.remove('show'), 1500);
+}
+
+async function apiCall(method, path, body) {
+  const el = document.getElementById('result');
+  el.style.display = 'block';
+  el.textContent = method + ' ' + path + '\n\nLoading...';
+  try {
+    const opts = {
+      method,
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+    };
+    if (body) opts.body = JSON.stringify(body);
+    const resp = await fetch(API_BASE + path, opts);
+    const data = await resp.json();
+    el.textContent = method + ' ' + path + ' → ' + resp.status + '\n\n' + JSON.stringify(data, null, 2);
+    return data;
+  } catch (e) {
+    el.textContent = method + ' ' + path + '\n\nError: ' + e.message;
+  }
+}
+
+async function createWallet(curve) {
+  const data = await apiCall('POST', '/api/v1/wallets', { curve });
+  if (data && data.wallet_id) {
+    loadWallets();
+  }
+}
+
+async function loadWallets() {
+  try {
+    const resp = await fetch(API_BASE + '/api/v1/wallets', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    const data = await resp.json();
+    if (data.wallets && data.wallets.length > 0) {
+      const section = document.getElementById('wallets-section');
+      const grid = document.getElementById('wallets-grid');
+      section.style.display = 'block';
+      grid.innerHTML = data.wallets.map(w => ` + "`" + `
+        <div class="wallet-card">
+          <h4>Wallet</h4>
+          <span class="curve-badge">${w.curve || 'unknown'}</span>
+          <div class="id">${w.wallet_id || w.id}</div>
+        </div>
+      ` + "`" + `).join('');
+    }
+  } catch (e) {}
+}
+
+function logout() {
+  localStorage.removeItem('mpc_token');
+  localStorage.removeItem('mpc_refresh_token');
+  location.href = '/';
+}
+
+loadUser();
+loadWallets();
+</script>
 </body>
 </html>`
 
