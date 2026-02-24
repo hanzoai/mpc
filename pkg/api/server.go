@@ -15,6 +15,7 @@ import (
 	"github.com/nats-io/nats.go"
 
 	"github.com/hanzoai/mpc/pkg/client"
+	"github.com/hanzoai/mpc/pkg/hsm"
 	"github.com/hanzoai/mpc/pkg/infra"
 	"github.com/hanzoai/mpc/pkg/keyinfo"
 	"github.com/hanzoai/mpc/pkg/logger"
@@ -33,6 +34,7 @@ type Server struct {
 	consulKV     infra.ConsulKV
 	keyInfoStore keyinfo.Store
 	mpcClient    client.MPCClient // signs and publishes keygen/signing/reshare via JetStream
+	hsmProvider  hsm.Provider     // HSM provider for key management (optional)
 }
 
 // Config holds configuration for the API server.
@@ -42,6 +44,7 @@ type Config struct {
 	NATSConn         *nats.Conn
 	ConsulKV         infra.ConsulKV // Consul KV for wallet metadata
 	InitiatorKeyPath string         // path to event_initiator.key (Ed25519 private key)
+	HSMProvider      hsm.Provider   // HSM provider for key management (optional)
 }
 
 // NewServer creates a new API server.
@@ -70,6 +73,7 @@ func NewServer(cfg Config) *Server {
 		consulKV:     cfg.ConsulKV,
 		keyInfoStore: kis,
 		mpcClient:    mpcCli,
+		hsmProvider:  cfg.HSMProvider,
 	}
 
 	mux := http.NewServeMux()
@@ -893,10 +897,25 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		status = "degraded"
 	}
 
+	hsmStatus := map[string]any{"enabled": false}
+	if s.hsmProvider != nil {
+		hsmStatus["enabled"] = true
+		hsmStatus["provider"] = s.hsmProvider.Name()
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+		if err := s.hsmProvider.Healthy(ctx); err != nil {
+			hsmStatus["healthy"] = false
+			hsmStatus["error"] = err.Error()
+		} else {
+			hsmStatus["healthy"] = true
+		}
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status": status,
 		"nats":   natsOK,
 		"consul": consulOK,
+		"hsm":    hsmStatus,
 		"time":   time.Now().UTC().Format(time.RFC3339),
 	})
 }
