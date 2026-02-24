@@ -228,9 +228,11 @@ func runNode(ctx context.Context, c *cli.Command) error {
 		iamEndpoint = "https://hanzo.id"
 	}
 	apiServer := mpcapi.NewServer(mpcapi.Config{
-		Port:        apiPort,
-		IAMEndpoint: iamEndpoint,
-		NATSConn:    natsConn,
+		Port:             apiPort,
+		IAMEndpoint:      iamEndpoint,
+		NATSConn:         natsConn,
+		ConsulKV:         consulClient.KV(),
+		InitiatorKeyPath: filepath.Join(".", "event_initiator.key"),
 	})
 	go func() {
 		if err := apiServer.Start(); err != nil && err.Error() != "http: Server closed" {

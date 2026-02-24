@@ -2,45 +2,74 @@ package api
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/big"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
 
+	"github.com/hanzoai/mpc/pkg/client"
+	"github.com/hanzoai/mpc/pkg/infra"
+	"github.com/hanzoai/mpc/pkg/keyinfo"
 	"github.com/hanzoai/mpc/pkg/logger"
 	"github.com/hanzoai/mpc/pkg/policy"
+	"github.com/hanzoai/mpc/pkg/types"
 )
 
 // Server provides HTTP REST API for MPC operations with IAM auth.
 type Server struct {
-	httpServer *http.Server
-	natsConn   *nats.Conn
-	iam        *IAMMiddleware
-	wallets    *WalletStore
-	policy     *policy.PolicyEngine
-	webhooks   *WebhookStore
+	httpServer   *http.Server
+	natsConn     *nats.Conn
+	iam          *IAMMiddleware
+	wallets      *WalletStore
+	policy       *policy.PolicyEngine
+	webhooks     *WebhookStore
+	consulKV     infra.ConsulKV
+	keyInfoStore keyinfo.Store
+	mpcClient    client.MPCClient // signs and publishes keygen/signing/reshare via JetStream
 }
 
 // Config holds configuration for the API server.
 type Config struct {
-	Port        int
-	IAMEndpoint string // e.g. "https://hanzo.id"
-	NATSConn    *nats.Conn
+	Port             int
+	IAMEndpoint      string // e.g. "https://hanzo.id"
+	NATSConn         *nats.Conn
+	ConsulKV         infra.ConsulKV // Consul KV for wallet metadata
+	InitiatorKeyPath string         // path to event_initiator.key (Ed25519 private key)
 }
 
 // NewServer creates a new API server.
 func NewServer(cfg Config) *Server {
+	var kis keyinfo.Store
+	if cfg.ConsulKV != nil {
+		kis = keyinfo.NewStore(cfg.ConsulKV)
+	}
+
+	// Create MPC client for signed message publishing (graceful — don't crash if key is missing)
+	keyPath := cfg.InitiatorKeyPath
+	if keyPath == "" {
+		keyPath = "./event_initiator.key"
+	}
+	var mpcCli client.MPCClient
+	if cfg.NATSConn != nil {
+		mpcCli = newMPCClientSafe(cfg.NATSConn, keyPath)
+	}
+
 	s := &Server{
-		natsConn: cfg.NATSConn,
-		iam:      NewIAMMiddleware(cfg.IAMEndpoint),
-		wallets:  NewWalletStore(cfg.NATSConn),
-		policy:   policy.NewPolicyEngine(),
-		webhooks: NewWebhookStore(),
+		natsConn:     cfg.NATSConn,
+		iam:          NewIAMMiddleware(cfg.IAMEndpoint),
+		wallets:      NewWalletStore(cfg.NATSConn),
+		policy:       policy.NewPolicyEngine(),
+		webhooks:     NewWebhookStore(),
+		consulKV:     cfg.ConsulKV,
+		keyInfoStore: kis,
+		mpcClient:    mpcCli,
 	}
 
 	mux := http.NewServeMux()
@@ -852,12 +881,22 @@ loadWallets();
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	status := "ok"
 	natsOK := s.natsConn != nil && s.natsConn.IsConnected()
-	if !natsOK {
+
+	consulOK := false
+	if s.consulKV != nil {
+		// Quick check: list ready/ prefix (lightweight)
+		_, _, err := s.consulKV.List("ready/", nil)
+		consulOK = err == nil
+	}
+
+	if !natsOK || (s.consulKV != nil && !consulOK) {
 		status = "degraded"
 	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status": status,
 		"nats":   natsOK,
+		"consul": consulOK,
 		"time":   time.Now().UTC().Format(time.RFC3339),
 	})
 }
@@ -881,22 +920,20 @@ func (s *Server) handleCreateWallet(w http.ResponseWriter, r *http.Request) {
 		req.Curve = "secp256k1"
 	}
 
+	if s.mpcClient == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "MPC client not initialized"})
+		return
+	}
+
 	walletID := uuid.New().String()
 
 	// Track in wallet store before publishing
 	s.wallets.TrackWallet(walletID, req.Curve, user.ID, req.Metadata)
 
-	evt := map[string]any{
-		"wallet_id":    walletID,
-		"curve":        req.Curve,
-		"metadata":     req.Metadata,
-		"requested_by": user.ID,
-	}
-
-	data, _ := json.Marshal(evt)
-	topic := fmt.Sprintf("mpc.keygen_request.%s", walletID)
-	if err := s.natsConn.Publish(topic, data); err != nil {
-		logger.Error("Failed to publish keygen request", err)
+	// Use the MPC client which signs the message with the initiator key
+	// and publishes via JetStream (same flow as the CLI client)
+	if err := s.mpcClient.CreateWallet(walletID); err != nil {
+		logger.Error("Failed to publish signed keygen request", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to initiate keygen"})
 		return
 	}
@@ -906,7 +943,7 @@ func (s *Server) handleCreateWallet(w http.ResponseWriter, r *http.Request) {
 		"wallet_id": walletID, "curve": req.Curve, "status": "pending",
 	})
 
-	logger.Info("Keygen requested", "walletID", walletID, "curve", req.Curve, "user", user.ID)
+	logger.Info("Keygen requested (signed)", "walletID", walletID, "curve", req.Curve, "user", user.ID)
 	writeJSON(w, http.StatusAccepted, map[string]any{
 		"wallet_id": walletID,
 		"status":    "keygen_initiated",
@@ -915,24 +952,102 @@ func (s *Server) handleCreateWallet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListWallets(w http.ResponseWriter, r *http.Request) {
-	// No owner filter — endpoint is already IAM-protected.
-	// With multiple replicas, owner-based filtering would miss wallets
-	// created on other pods (in-memory store is per-pod).
-	wallets := s.wallets.ListWallets("")
+	// Merge in-memory pending wallets with Consul-backed completed wallets.
+	result := make([]map[string]any, 0)
+
+	// 1. Get in-memory wallets (pending keygen, recently created on this pod)
+	memWallets := s.wallets.ListWallets("")
+	seen := make(map[string]bool)
+	for _, mw := range memWallets {
+		seen[mw.ID] = true
+		result = append(result, map[string]any{
+			"id":         mw.ID,
+			"curve":      mw.Curve,
+			"status":     mw.Status,
+			"public_key": mw.PublicKey,
+			"owner":      mw.Owner,
+			"created_at": mw.CreatedAt,
+			"updated_at": mw.UpdatedAt,
+		})
+	}
+
+	// 2. Enumerate Consul keyinfo for wallets completed across all pods
+	if s.consulKV != nil {
+		pairs, _, err := s.consulKV.List("threshold_keyinfo/", nil)
+		if err != nil {
+			logger.Warn("Failed to list wallets from Consul", "error", err)
+		} else {
+			for _, pair := range pairs {
+				walletID := strings.TrimPrefix(pair.Key, "threshold_keyinfo/")
+				if walletID == "" || seen[walletID] {
+					continue
+				}
+				seen[walletID] = true
+
+				var ki keyinfo.KeyInfo
+				if err := json.Unmarshal(pair.Value, &ki); err != nil {
+					continue
+				}
+				result = append(result, map[string]any{
+					"id":        walletID,
+					"status":    "active",
+					"threshold": ki.Threshold,
+					"parties":   len(ki.ParticipantPeerIDs),
+					"version":   ki.Version,
+				})
+			}
+		}
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
-		"wallets": wallets,
-		"count":   len(wallets),
+		"wallets": result,
+		"count":   len(result),
 	})
 }
 
 func (s *Server) handleGetWallet(w http.ResponseWriter, r *http.Request) {
 	walletID := strings.TrimPrefix(r.URL.Path, "/api/v1/wallets/")
-	wallet, ok := s.wallets.GetWallet(walletID)
-	if !ok {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "wallet not found"})
+
+	// Check in-memory first (for pending wallets on this pod)
+	if wallet, ok := s.wallets.GetWallet(walletID); ok {
+		// Enrich with Consul keyinfo if available
+		if s.keyInfoStore != nil {
+			if ki, err := s.keyInfoStore.Get(walletID); err == nil {
+				writeJSON(w, http.StatusOK, map[string]any{
+					"id":         wallet.ID,
+					"curve":      wallet.Curve,
+					"status":     wallet.Status,
+					"public_key": wallet.PublicKey,
+					"owner":      wallet.Owner,
+					"threshold":  ki.Threshold,
+					"parties":    len(ki.ParticipantPeerIDs),
+					"version":    ki.Version,
+					"created_at": wallet.CreatedAt,
+					"updated_at": wallet.UpdatedAt,
+				})
+				return
+			}
+		}
+		writeJSON(w, http.StatusOK, wallet)
 		return
 	}
-	writeJSON(w, http.StatusOK, wallet)
+
+	// Fall back to Consul keyinfo (wallet created on another pod or before restart)
+	if s.keyInfoStore != nil {
+		ki, err := s.keyInfoStore.Get(walletID)
+		if err == nil {
+			writeJSON(w, http.StatusOK, map[string]any{
+				"id":        walletID,
+				"status":    "active",
+				"threshold": ki.Threshold,
+				"parties":   len(ki.ParticipantPeerIDs),
+				"version":   ki.Version,
+			})
+			return
+		}
+	}
+
+	writeJSON(w, http.StatusNotFound, map[string]string{"error": "wallet not found"})
 }
 
 // --- Signing ---
@@ -1021,28 +1136,51 @@ func (s *Server) handleSign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if s.mpcClient == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "MPC client not initialized"})
+		return
+	}
+
 	sessionID := uuid.New().String()
 
 	// Track in session store
 	s.wallets.TrackSession(sessionID, req.WalletID, req.Message, user.ID, req.Metadata)
 
-	evt := map[string]any{
-		"session_id":   sessionID,
-		"wallet_id":    req.WalletID,
-		"message":      req.Message,
-		"metadata":     req.Metadata,
-		"requested_by": user.ID,
+	// Determine key type from wallet curve or metadata
+	keyType := types.KeyTypeSecp256k1
+	if wallet, ok := s.wallets.GetWallet(req.WalletID); ok {
+		if wallet.Curve == "ed25519" {
+			keyType = types.KeyTypeEd25519
+		}
 	}
 
-	data, _ := json.Marshal(evt)
-	topic := fmt.Sprintf("mpc.signing_request.%s", req.WalletID)
-	if err := s.natsConn.Publish(topic, data); err != nil {
-		logger.Error("Failed to publish signing request", err)
+	// Decode the hex message to bytes for signing
+	txBytes, err := hex.DecodeString(req.Message)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "message must be hex-encoded"})
+		return
+	}
+
+	// Build a properly typed and signed message via the MPC client
+	signMsg := &types.SignTxMessage{
+		KeyType:  keyType,
+		WalletID: req.WalletID,
+		TxID:     sessionID,
+		Tx:       txBytes,
+	}
+	if req.Metadata != nil {
+		if nic, ok := req.Metadata["network"].(string); ok {
+			signMsg.NetworkInternalCode = nic
+		}
+	}
+
+	if err := s.mpcClient.SignTransaction(signMsg); err != nil {
+		logger.Error("Failed to publish signed signing request", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to initiate signing"})
 		return
 	}
 
-	logger.Info("Signing requested", "sessionID", sessionID, "walletID", req.WalletID, "user", user.ID)
+	logger.Info("Signing requested (signed)", "sessionID", sessionID, "walletID", req.WalletID, "user", user.ID)
 	writeJSON(w, http.StatusAccepted, map[string]any{
 		"session_id":    sessionID,
 		"wallet_id":     req.WalletID,
@@ -1073,24 +1211,35 @@ func (s *Server) handleReshare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionID := uuid.New().String()
-	event := map[string]any{
-		"session_id":   sessionID,
-		"wallet_id":    req.WalletID,
-		"new_n":        req.NewN,
-		"new_t":        req.NewT,
-		"requested_by": user.ID,
+	if s.mpcClient == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "MPC client not initialized"})
+		return
 	}
 
-	data, _ := json.Marshal(event)
-	topic := fmt.Sprintf("mpc.reshare_request.%s", req.WalletID)
-	if err := s.natsConn.Publish(topic, data); err != nil {
-		logger.Error("Failed to publish reshare request", err)
+	sessionID := uuid.New().String()
+
+	// Determine key type from wallet
+	keyType := types.KeyTypeSecp256k1
+	if wallet, ok := s.wallets.GetWallet(req.WalletID); ok {
+		if wallet.Curve == "ed25519" {
+			keyType = types.KeyTypeEd25519
+		}
+	}
+
+	reshareMsg := &types.ResharingMessage{
+		SessionID:    sessionID,
+		WalletID:     req.WalletID,
+		KeyType:      keyType,
+		NewThreshold: req.NewT,
+	}
+
+	if err := s.mpcClient.Resharing(reshareMsg); err != nil {
+		logger.Error("Failed to publish signed reshare request", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to initiate reshare"})
 		return
 	}
 
-	logger.Info("Reshare requested", "sessionID", sessionID, "walletID", req.WalletID, "user", user.ID)
+	logger.Info("Reshare requested (signed)", "sessionID", sessionID, "walletID", req.WalletID, "user", user.ID)
 	writeJSON(w, http.StatusAccepted, map[string]any{
 		"session_id": sessionID,
 		"wallet_id":  req.WalletID,
@@ -1307,6 +1456,25 @@ func (s *Server) handleDeleteWebhook(w http.ResponseWriter, r *http.Request) {
 }
 
 // --- Helpers ---
+
+// newMPCClientSafe attempts to create an MPC client but returns nil instead of crashing
+// if the event_initiator.key file is missing (common when the API server runs inside
+// MPC node pods that don't carry the initiator private key).
+func newMPCClientSafe(nc *nats.Conn, keyPath string) client.MPCClient {
+	// Check if the key file exists before attempting to create the client
+	// (client.NewMPCClient calls logger.Fatal on missing key, which calls os.Exit)
+	if _, err := os.Stat(keyPath); err != nil {
+		logger.Warn("Event initiator key not found, API wallet/signing operations will be unavailable",
+			"keyPath", keyPath, "error", err)
+		return nil
+	}
+	mpcCli := client.NewMPCClient(client.Options{
+		NatsConn: nc,
+		KeyPath:  keyPath,
+	})
+	logger.Info("API server initialized MPC client with initiator key", "keyPath", keyPath)
+	return mpcCli
+}
 
 func mapAnyToString(m map[string]any) map[string]string {
 	if m == nil {
