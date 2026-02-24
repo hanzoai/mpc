@@ -10,12 +10,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/hashicorp/consul/api"
+	consulapi "github.com/hashicorp/consul/api"
 	"github.com/nats-io/nats.go"
 	"github.com/spf13/viper"
 	"github.com/urfave/cli/v3"
 	"golang.org/x/term"
 
+	mpcapi "github.com/hanzoai/mpc/pkg/api"
 	"github.com/hanzoai/mpc/pkg/config"
 	"github.com/hanzoai/mpc/pkg/constant"
 	"github.com/hanzoai/mpc/pkg/event"
@@ -216,6 +217,28 @@ func runNode(ctx context.Context, c *cli.Command) error {
 		logger.Error("Failed to mark peer registry as ready", err)
 	}
 	logger.Info("[READY] Node is ready", "nodeID", nodeID)
+
+	// Start HTTP API server with IAM auth
+	apiPort := viper.GetInt("api_port")
+	if apiPort == 0 {
+		apiPort = 8080
+	}
+	iamEndpoint := viper.GetString("iam_endpoint")
+	if iamEndpoint == "" {
+		iamEndpoint = "https://hanzo.id"
+	}
+	apiServer := mpcapi.NewServer(mpcapi.Config{
+		Port:        apiPort,
+		IAMEndpoint: iamEndpoint,
+		NATSConn:    natsConn,
+	})
+	go func() {
+		if err := apiServer.Start(); err != nil && err.Error() != "http: Server closed" {
+			logger.Error("API server error", err)
+		}
+	}()
+	logger.Info("API server started", "port", apiPort, "iam", iamEndpoint)
+
 	appContext, cancel := context.WithCancel(context.Background())
 	// Setup signal handling to cancel context on termination signals.
 	go func() {
@@ -224,6 +247,13 @@ func runNode(ctx context.Context, c *cli.Command) error {
 		<-sigChan
 		logger.Warn("Shutdown signal received, canceling context...")
 		cancel()
+
+		// Gracefully shutdown API server
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer shutdownCancel()
+		if err := apiServer.Shutdown(shutdownCtx); err != nil {
+			logger.Error("API server shutdown error", err)
+		}
 
 		// Gracefully close consumers
 		if err := keygenConsumer.Close(); err != nil {
@@ -365,11 +395,11 @@ func checkRequiredConfigValues() {
 	}
 }
 
-func NewConsulClient(addr string) *api.Client {
+func NewConsulClient(addr string) *consulapi.Client {
 	// Create a new Consul client
-	consulConfig := api.DefaultConfig()
+	consulConfig := consulapi.DefaultConfig()
 	consulConfig.Address = addr
-	consulClient, err := api.NewClient(consulConfig)
+	consulClient, err := consulapi.NewClient(consulConfig)
 	if err != nil {
 		logger.Fatal("Failed to create consul client", err)
 	}
@@ -377,7 +407,7 @@ func NewConsulClient(addr string) *api.Client {
 	return consulClient
 }
 
-func LoadPeersFromConsul(consulClient *api.Client) []config.Peer { // Create a Consul Key-Value store client
+func LoadPeersFromConsul(consulClient *consulapi.Client) []config.Peer { // Create a Consul Key-Value store client
 	kv := consulClient.KV()
 	peers, err := config.LoadPeersFromConsul(kv, "mpc_peers/")
 	if err != nil {

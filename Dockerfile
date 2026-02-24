@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.24.5-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 RUN apk add --no-cache git make
 
@@ -15,9 +15,8 @@ RUN go mod download
 COPY . .
 
 # Build the binaries
-RUN go build -o lux-mpc ./cmd/lux-mpc
-RUN go build -o lux-mpc-cli ./cmd/lux-mpc-cli
-RUN go build -o lux-mpc-bridge ./cmd/lux-mpc-bridge || true
+RUN go build -o hanzo-mpc ./cmd/hanzo-mpc
+RUN go build -o hanzo-mpc-cli ./cmd/hanzo-mpc-cli
 
 # Runtime stage
 FROM alpine:latest
@@ -27,23 +26,22 @@ RUN apk add --no-cache ca-certificates curl bash
 WORKDIR /app
 
 # Copy binaries from builder
-COPY --from=builder /build/lux-mpc /usr/local/bin/
-COPY --from=builder /build/lux-mpc-cli /usr/local/bin/
-COPY --from=builder /build/lux-mpc-bridge /usr/local/bin/
+COPY --from=builder /build/hanzo-mpc /usr/local/bin/
+COPY --from=builder /build/hanzo-mpc-cli /usr/local/bin/
 
 # Copy config templates
 COPY config.yaml.template /app/
-COPY peers.json /app/
+COPY config.prod.yaml.template /app/
 
 # Create data and log directories
 RUN mkdir -p /data/mpc /app/logs /app/identity
 
-# Expose ports
+# Expose ports (6000=MPC protocol, 8080=HTTP API with IAM auth, 9090=gRPC)
 EXPOSE 6000 8080 9090
 
-# Health check
+# Health check uses the unauthenticated /health endpoint
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:8080/health || exit 1
 
 # Default command
-CMD ["lux-mpc", "start", "--config", "/app/config.yaml"]
+CMD ["hanzo-mpc", "start", "--config", "/app/config.yaml"]

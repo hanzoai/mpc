@@ -13,3 +13,8 @@ mpc_threshold: 2
 environment: mainnet # Options: mainnet, testnet, local
 backup_enabled: true
 backup_period_seconds: 300 # Seconds
+
+# HTTP API server
+api_port: 8080
+# Hanzo IAM endpoint for unified auth (validates bearer tokens)
+iam_endpoint: "https://hanzo.id"
