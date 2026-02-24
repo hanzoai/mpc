@@ -8,7 +8,12 @@ environment: local # Options: mainnet, testnet, local
 badger_password: "your_badger_password"
 event_initiator_pubkey: "event_initiator_pubkey"
 max_concurrent_keygen: 2
-db_path: "."  
+db_path: "."
 backup_enabled: true
 backup_period_seconds: 300 # 5 minutes
 backup_dir: backups
+
+# HTTP API server
+api_port: 8080
+# Hanzo IAM endpoint for unified auth (validates bearer tokens)
+iam_endpoint: "https://hanzo.id"
