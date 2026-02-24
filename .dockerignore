@@ -1,0 +1,10 @@
+.git
+.github
+*.md
+LICENSE
+docker-compose*.yml
+compose.yml
+data/
+logs/
+*.test
+*.prof
