@@ -112,6 +112,50 @@ make e2e-test        # End-to-end
 ### E2E Tests
 - Tests use `hanzo-mpc` from PATH -- run `go install ./cmd/hanzo-mpc && go install ./cmd/hanzo-mpc-cli` after code changes
 
+## Production Deployment (Feb 2026)
+
+### Cluster: hanzo-k8s (do-sfo3)
+- **Namespace**: `hanzo`
+- **StatefulSet**: `hanzo-mpc` (3 replicas)
+- **Image**: `ghcr.io/hanzoai/mpc:v0.4.3`
+- **API**: `mpc.hanzo.ai` (port 8080, IAM auth via hanzo.id)
+- **Node peers**: hanzo-mpc-{0,1,2}
+- **Threshold**: 2-of-3
+
+### Infrastructure
+- **NATS**: `nats://nats.hanzo.svc.cluster.local:4222` (JetStream)
+- **Consul**: `consul-server.hanzo.svc.cluster.local:8500` (wallet persistence)
+- **Config**: ConfigMap `hanzo-mpc-config` at `/app/config.yaml`
+- **Identity**: Secret `hanzo-mpc-identity` at `/app/identity/` + `/app/event_initiator.key`
+
+### Key Architecture
+- **Event initiator key** (Ed25519): Signs all keygen/signing/reshare messages
+  - Private key: K8s secret `hanzo-mpc-identity` key `event_initiator.key` (hex seed)
+  - Public key: ConfigMap `event_initiator_pubkey`
+  - Mounted at `/app/event_initiator.key` via subPath volumeMount
+- **Node identity keys**: Per-node Ed25519 keys in identity secret
+  - `hanzo-mpc-{N}_private.key` + `hanzo-mpc-{N}_identity.json`
+- **MPC key shards**: BadgerDB at `/data/mpc/db/hanzo-mpc-{N}/` (PVC)
+
+### Message Flow (verified working Feb 24 2026)
+```
+API → MPCClient.CreateWallet(walletID)
+  → Ed25519 sign(GenerateKeyMessage)
+  → JetStream publish to mpc.keygen_request.<walletID>
+  → KeygenConsumer → PubSub mpc:generate
+  → EventConsumer.VerifyInitiatorMessage() ✓
+  → CGGMP21 DKG protocol (3 rounds) → ~16s
+  → Result → mpc.mpc_keygen_result.<walletID>
+  → WalletStore.handleKeygenResult() → status: active
+```
+
+### TODO: KMS-First Key Management
+- Store event_initiator private key in KMS (kms.hanzo.ai)
+- Each node authenticates to KMS with Machine Identity
+- Fetch key shards at runtime (never plaintext on disk)
+- HSM abstraction (PKCS#11) for AWS CloudHSM / Azure HSM
+- Node keys also in KMS with encrypted backups
+
 ## Security Audit Findings (Jan 2026)
 
 1. Protocol messages between nodes are NOT signed (Ed25519 code exists but disabled)
