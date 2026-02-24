@@ -21,6 +21,7 @@ import (
 	"github.com/hanzoai/mpc/pkg/constant"
 	"github.com/hanzoai/mpc/pkg/event"
 	"github.com/hanzoai/mpc/pkg/eventconsumer"
+	"github.com/hanzoai/mpc/pkg/hsm"
 	"github.com/hanzoai/mpc/pkg/identity"
 	"github.com/hanzoai/mpc/pkg/infra"
 	"github.com/hanzoai/mpc/pkg/keyinfo"
@@ -218,6 +219,9 @@ func runNode(ctx context.Context, c *cli.Command) error {
 	}
 	logger.Info("[READY] Node is ready", "nodeID", nodeID)
 
+	// Initialize HSM provider for key management
+	hsmProvider := initHSMProvider()
+
 	// Start HTTP API server with IAM auth
 	apiPort := viper.GetInt("api_port")
 	if apiPort == 0 {
@@ -233,6 +237,7 @@ func runNode(ctx context.Context, c *cli.Command) error {
 		NATSConn:         natsConn,
 		ConsulKV:         consulClient.KV(),
 		InitiatorKeyPath: filepath.Join(".", "event_initiator.key"),
+		HSMProvider:      hsmProvider,
 	})
 	go func() {
 		if err := apiServer.Start(); err != nil && err.Error() != "http: Server closed" {
@@ -526,4 +531,80 @@ func GetNATSConnection(environment string) (*nats.Conn, error) {
 	}
 
 	return nats.Connect(url, opts...)
+}
+
+// initHSMProvider creates an HSM provider from config. Falls back to "file" provider.
+func initHSMProvider() hsm.Provider {
+	cfg := hsm.Config{
+		Provider: viper.GetString("hsm.provider"),
+	}
+
+	// Wire provider-specific config from viper
+	switch cfg.Provider {
+	case "aws":
+		cfg.AWS = &hsm.AWSConfig{
+			Region:         viper.GetString("hsm.aws.region"),
+			KeyARN:         viper.GetString("hsm.aws.key_arn"),
+			CustomKeyStore: viper.GetString("hsm.aws.custom_key_store"),
+			Profile:        viper.GetString("hsm.aws.profile"),
+			RoleARN:        viper.GetString("hsm.aws.role_arn"),
+		}
+	case "gcp":
+		cfg.GCP = &hsm.GCPConfig{
+			Project:  viper.GetString("hsm.gcp.project"),
+			Location: viper.GetString("hsm.gcp.location"),
+			KeyRing:  viper.GetString("hsm.gcp.key_ring"),
+			KeyName:  viper.GetString("hsm.gcp.key_name"),
+			HSMLevel: viper.GetString("hsm.gcp.hsm_level"),
+		}
+	case "azure":
+		cfg.Azure = &hsm.AzureConfig{
+			VaultURL:           viper.GetString("hsm.azure.vault_url"),
+			KeyName:            viper.GetString("hsm.azure.key_name"),
+			TenantID:           viper.GetString("hsm.azure.tenant_id"),
+			ClientID:           viper.GetString("hsm.azure.client_id"),
+			ClientSecret:       viper.GetString("hsm.azure.client_secret"),
+			UseManagedIdentity: viper.GetBool("hsm.azure.use_managed_identity"),
+		}
+	case "zymbit":
+		cfg.Zymbit = &hsm.ZymbitConfig{
+			DevicePath:  viper.GetString("hsm.zymbit.device_path"),
+			SlotID:      viper.GetInt("hsm.zymbit.slot_id"),
+			KeyType:     viper.GetString("hsm.zymbit.key_type"),
+			APIEndpoint: viper.GetString("hsm.zymbit.api_endpoint"),
+		}
+	case "kms":
+		cfg.KMS = &hsm.KMSConfig{
+			SiteURL:      viper.GetString("hsm.kms.site_url"),
+			ClientID:     viper.GetString("hsm.kms.client_id"),
+			ClientSecret: viper.GetString("hsm.kms.client_secret"),
+			ProjectID:    viper.GetString("hsm.kms.project_id"),
+			Environment:  viper.GetString("hsm.kms.environment"),
+			SecretPath:   viper.GetString("hsm.kms.secret_path"),
+		}
+	case "file", "":
+		cfg.Provider = "file"
+		basePath := viper.GetString("hsm.file.base_path")
+		if basePath == "" {
+			basePath = "."
+		}
+		cfg.File = &hsm.FileConfig{
+			BasePath:   basePath,
+			HexEncoded: true,
+		}
+	}
+
+	provider, err := hsm.NewProvider(cfg)
+	if err != nil {
+		logger.Warn("Failed to initialize HSM provider, key management will be file-based",
+			"provider", cfg.Provider, "error", err)
+		// Fall back to file provider
+		fp, _ := hsm.NewProvider(hsm.Config{
+			Provider: "file",
+			File:     &hsm.FileConfig{BasePath: ".", HexEncoded: true},
+		})
+		return fp
+	}
+	logger.Info("HSM provider initialized", "provider", provider.Name())
+	return provider
 }
