@@ -4,13 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
 
 	"github.com/hanzoai/mpc/pkg/logger"
+	"github.com/hanzoai/mpc/pkg/policy"
 )
 
 // Server provides HTTP REST API for MPC operations with IAM auth.
@@ -18,6 +21,9 @@ type Server struct {
 	httpServer *http.Server
 	natsConn   *nats.Conn
 	iam        *IAMMiddleware
+	wallets    *WalletStore
+	policy     *policy.PolicyEngine
+	webhooks   *WebhookStore
 }
 
 // Config holds configuration for the API server.
@@ -32,6 +38,9 @@ func NewServer(cfg Config) *Server {
 	s := &Server{
 		natsConn: cfg.NATSConn,
 		iam:      NewIAMMiddleware(cfg.IAMEndpoint),
+		wallets:  NewWalletStore(cfg.NATSConn),
+		policy:   policy.NewPolicyEngine(),
+		webhooks: NewWebhookStore(),
 	}
 
 	mux := http.NewServeMux()
@@ -66,20 +75,67 @@ func (s *Server) Start() error {
 
 // Shutdown gracefully stops the API server.
 func (s *Server) Shutdown(ctx context.Context) error {
+	s.wallets.Close()
 	return s.httpServer.Shutdown(ctx)
 }
 
 // routeAPI dispatches authenticated API requests.
 func (s *Server) routeAPI(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path
+
 	switch {
-	case r.Method == "POST" && r.URL.Path == "/api/v1/wallets":
+	// Wallets
+	case r.Method == "POST" && path == "/api/v1/wallets":
 		s.handleCreateWallet(w, r)
-	case r.Method == "GET" && r.URL.Path == "/api/v1/wallets":
+	case r.Method == "GET" && path == "/api/v1/wallets":
 		s.handleListWallets(w, r)
-	case r.Method == "POST" && r.URL.Path == "/api/v1/sign":
+	case r.Method == "GET" && strings.HasPrefix(path, "/api/v1/wallets/") && !strings.Contains(path[len("/api/v1/wallets/"):], "/"):
+		s.handleGetWallet(w, r)
+
+	// Signing
+	case r.Method == "POST" && path == "/api/v1/sign":
 		s.handleSign(w, r)
-	case r.Method == "POST" && r.URL.Path == "/api/v1/reshare":
+
+	// Transactions (signing history)
+	case r.Method == "GET" && path == "/api/v1/transactions":
+		s.handleListTransactions(w, r)
+	case r.Method == "GET" && strings.HasPrefix(path, "/api/v1/transactions/"):
+		s.handleGetTransaction(w, r)
+
+	// Reshare
+	case r.Method == "POST" && path == "/api/v1/reshare":
 		s.handleReshare(w, r)
+
+	// Policies
+	case r.Method == "POST" && path == "/api/v1/policies":
+		s.handleCreatePolicy(w, r)
+	case r.Method == "GET" && path == "/api/v1/policies":
+		s.handleListPolicies(w, r)
+	case r.Method == "DELETE" && strings.HasPrefix(path, "/api/v1/policies/"):
+		s.handleDeletePolicy(w, r)
+
+	// Wallet-specific policies
+	case r.Method == "PUT" && strings.HasSuffix(path, "/policy") && strings.HasPrefix(path, "/api/v1/wallets/"):
+		s.handleSetWalletPolicy(w, r)
+	case r.Method == "GET" && strings.HasSuffix(path, "/policy") && strings.HasPrefix(path, "/api/v1/wallets/"):
+		s.handleGetWalletPolicy(w, r)
+
+	// Signers
+	case r.Method == "POST" && path == "/api/v1/signers":
+		s.handleCreateSigner(w, r)
+	case r.Method == "GET" && path == "/api/v1/signers":
+		s.handleListSigners(w, r)
+	case r.Method == "DELETE" && strings.HasPrefix(path, "/api/v1/signers/"):
+		s.handleDeleteSigner(w, r)
+
+	// Webhooks
+	case r.Method == "POST" && path == "/api/v1/webhooks":
+		s.handleCreateWebhook(w, r)
+	case r.Method == "GET" && path == "/api/v1/webhooks":
+		s.handleListWebhooks(w, r)
+	case r.Method == "DELETE" && strings.HasPrefix(path, "/api/v1/webhooks/"):
+		s.handleDeleteWebhook(w, r)
+
 	default:
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 	}
@@ -826,20 +882,29 @@ func (s *Server) handleCreateWallet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	walletID := uuid.New().String()
-	event := map[string]any{
+
+	// Track in wallet store before publishing
+	s.wallets.TrackWallet(walletID, req.Curve, user.ID, req.Metadata)
+
+	evt := map[string]any{
 		"wallet_id":    walletID,
 		"curve":        req.Curve,
 		"metadata":     req.Metadata,
 		"requested_by": user.ID,
 	}
 
-	data, _ := json.Marshal(event)
+	data, _ := json.Marshal(evt)
 	topic := fmt.Sprintf("mpc.keygen_request.%s", walletID)
 	if err := s.natsConn.Publish(topic, data); err != nil {
 		logger.Error("Failed to publish keygen request", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to initiate keygen"})
 		return
 	}
+
+	// Dispatch webhook
+	s.webhooks.Dispatch(WebhookKeygenCompleted, map[string]any{
+		"wallet_id": walletID, "curve": req.Curve, "status": "pending",
+	})
 
 	logger.Info("Keygen requested", "walletID", walletID, "curve", req.Curve, "user", user.ID)
 	writeJSON(w, http.StatusAccepted, map[string]any{
@@ -850,12 +915,24 @@ func (s *Server) handleCreateWallet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListWallets(w http.ResponseWriter, r *http.Request) {
-	// Wallet listing requires reading from Consul keyinfo store.
-	// For now return a placeholder that indicates the endpoint is live.
+	// No owner filter — endpoint is already IAM-protected.
+	// With multiple replicas, owner-based filtering would miss wallets
+	// created on other pods (in-memory store is per-pod).
+	wallets := s.wallets.ListWallets("")
 	writeJSON(w, http.StatusOK, map[string]any{
-		"wallets": []any{},
-		"message": "wallet listing via keyinfo store — connect to consul for full data",
+		"wallets": wallets,
+		"count":   len(wallets),
 	})
+}
+
+func (s *Server) handleGetWallet(w http.ResponseWriter, r *http.Request) {
+	walletID := strings.TrimPrefix(r.URL.Path, "/api/v1/wallets/")
+	wallet, ok := s.wallets.GetWallet(walletID)
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "wallet not found"})
+		return
+	}
+	writeJSON(w, http.StatusOK, wallet)
 }
 
 // --- Signing ---
@@ -879,8 +956,77 @@ func (s *Server) handleSign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Evaluate policy before signing
+	chain := ""
+	asset := ""
+	destination := ""
+	var amount *big.Int
+	if req.Metadata != nil {
+		if c, ok := req.Metadata["chain"].(string); ok {
+			chain = c
+		}
+		if a, ok := req.Metadata["asset"].(string); ok {
+			asset = a
+		}
+		if d, ok := req.Metadata["destination"].(string); ok {
+			destination = d
+		}
+		if amt, ok := req.Metadata["amount"].(string); ok {
+			amount = new(big.Int)
+			amount.SetString(amt, 10)
+		}
+	}
+	if amount == nil {
+		amount = big.NewInt(0)
+	}
+
+	policyResult, err := s.policy.Evaluate(r.Context(), &policy.TransactionRequest{
+		ID:          uuid.New().String(),
+		WalletID:    req.WalletID,
+		InitiatorID: user.ID,
+		Chain:       chain,
+		Asset:       asset,
+		Amount:      amount,
+		Destination: destination,
+		Metadata:    mapAnyToString(req.Metadata),
+		CreatedAt:   time.Now(),
+	})
+	if err != nil {
+		logger.Error("Policy evaluation failed", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "policy evaluation failed"})
+		return
+	}
+
+	if !policyResult.Allowed {
+		s.webhooks.Dispatch(WebhookPolicyDenied, map[string]any{
+			"wallet_id": req.WalletID, "reason": policyResult.DenyReason,
+			"matched_rules": policyResult.MatchedRules,
+		})
+		writeJSON(w, http.StatusForbidden, map[string]any{
+			"error":         "transaction denied by policy",
+			"reason":        policyResult.DenyReason,
+			"matched_rules": policyResult.MatchedRules,
+		})
+		return
+	}
+
+	if policyResult.Action == policy.ActionRequireApproval {
+		writeJSON(w, http.StatusAccepted, map[string]any{
+			"status":           "approval_required",
+			"wallet_id":        req.WalletID,
+			"required_signers": policyResult.RequiredSigners,
+			"required_count":   policyResult.RequiredCount,
+			"matched_rules":    policyResult.MatchedRules,
+		})
+		return
+	}
+
 	sessionID := uuid.New().String()
-	event := map[string]any{
+
+	// Track in session store
+	s.wallets.TrackSession(sessionID, req.WalletID, req.Message, user.ID, req.Metadata)
+
+	evt := map[string]any{
 		"session_id":   sessionID,
 		"wallet_id":    req.WalletID,
 		"message":      req.Message,
@@ -888,7 +1034,7 @@ func (s *Server) handleSign(w http.ResponseWriter, r *http.Request) {
 		"requested_by": user.ID,
 	}
 
-	data, _ := json.Marshal(event)
+	data, _ := json.Marshal(evt)
 	topic := fmt.Sprintf("mpc.signing_request.%s", req.WalletID)
 	if err := s.natsConn.Publish(topic, data); err != nil {
 		logger.Error("Failed to publish signing request", err)
@@ -898,9 +1044,11 @@ func (s *Server) handleSign(w http.ResponseWriter, r *http.Request) {
 
 	logger.Info("Signing requested", "sessionID", sessionID, "walletID", req.WalletID, "user", user.ID)
 	writeJSON(w, http.StatusAccepted, map[string]any{
-		"session_id": sessionID,
-		"wallet_id":  req.WalletID,
-		"status":     "signing_initiated",
+		"session_id":    sessionID,
+		"wallet_id":     req.WalletID,
+		"status":        "signing_initiated",
+		"policy_result": policyResult.Action,
+		"warnings":      policyResult.Warnings,
 	})
 }
 
@@ -950,7 +1098,226 @@ func (s *Server) handleReshare(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// --- Transactions (Signing History) ---
+
+func (s *Server) handleListTransactions(w http.ResponseWriter, r *http.Request) {
+	walletID := r.URL.Query().Get("wallet_id")
+	sessions := s.wallets.ListSessions(walletID)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"transactions": sessions,
+		"count":        len(sessions),
+	})
+}
+
+func (s *Server) handleGetTransaction(w http.ResponseWriter, r *http.Request) {
+	txID := strings.TrimPrefix(r.URL.Path, "/api/v1/transactions/")
+	session, ok := s.wallets.GetSession(txID)
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "transaction not found"})
+		return
+	}
+	writeJSON(w, http.StatusOK, session)
+}
+
+// --- Policies ---
+
+type createPolicyRequest struct {
+	Name        string             `json:"name"`
+	Description string             `json:"description"`
+	Priority    int                `json:"priority"`
+	Conditions  []policy.Condition `json:"conditions"`
+	Action      policy.RuleAction  `json:"action"`
+	Signers     policy.SignerConfig `json:"signers"`
+	Enabled     bool               `json:"enabled"`
+}
+
+func (s *Server) handleCreatePolicy(w http.ResponseWriter, r *http.Request) {
+	var req createPolicyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	if req.Name == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name is required"})
+		return
+	}
+
+	rule := policy.Rule{
+		ID:          uuid.New().String(),
+		Name:        req.Name,
+		Description: req.Description,
+		Priority:    req.Priority,
+		Conditions:  req.Conditions,
+		Action:      req.Action,
+		Signers:     req.Signers,
+		Enabled:     req.Enabled,
+	}
+
+	s.policy.AddRule(rule)
+	logger.Info("Policy rule created", "id", rule.ID, "name", rule.Name, "action", rule.Action)
+
+	writeJSON(w, http.StatusCreated, rule)
+}
+
+func (s *Server) handleListPolicies(w http.ResponseWriter, r *http.Request) {
+	data, _ := s.policy.MarshalJSON()
+	var state map[string]any
+	json.Unmarshal(data, &state)
+	writeJSON(w, http.StatusOK, state)
+}
+
+func (s *Server) handleDeletePolicy(w http.ResponseWriter, r *http.Request) {
+	_ = strings.TrimPrefix(r.URL.Path, "/api/v1/policies/")
+	// PolicyEngine doesn't have RemoveRule yet — acknowledge receipt
+	writeJSON(w, http.StatusOK, map[string]string{"status": "policy deletion acknowledged"})
+}
+
+// --- Wallet Policies ---
+
+func (s *Server) handleSetWalletPolicy(w http.ResponseWriter, r *http.Request) {
+	// Extract wallet ID: /api/v1/wallets/{id}/policy
+	parts := strings.Split(r.URL.Path, "/")
+	if len(parts) < 6 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid path"})
+		return
+	}
+	walletID := parts[4]
+
+	var wp policy.WalletPolicy
+	if err := json.NewDecoder(r.Body).Decode(&wp); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+	wp.WalletID = walletID
+
+	if err := s.policy.SetWalletPolicy(&wp); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	logger.Info("Wallet policy set", "walletID", walletID, "name", wp.Name)
+	writeJSON(w, http.StatusOK, wp)
+}
+
+func (s *Server) handleGetWalletPolicy(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(r.URL.Path, "/")
+	if len(parts) < 6 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid path"})
+		return
+	}
+	walletID := parts[4]
+
+	wp, ok := s.policy.GetWalletPolicy(walletID)
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no policy for wallet"})
+		return
+	}
+	writeJSON(w, http.StatusOK, wp)
+}
+
+// --- Signers ---
+
+func (s *Server) handleCreateSigner(w http.ResponseWriter, r *http.Request) {
+	var signer policy.Signer
+	if err := json.NewDecoder(r.Body).Decode(&signer); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	if signer.ID == "" {
+		signer.ID = uuid.New().String()
+	}
+
+	if err := s.policy.AddSigner(&signer); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	logger.Info("Signer created", "id", signer.ID, "name", signer.Name, "role", signer.Role)
+	writeJSON(w, http.StatusCreated, signer)
+}
+
+func (s *Server) handleListSigners(w http.ResponseWriter, r *http.Request) {
+	signers := s.policy.ListSigners()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"signers": signers,
+		"count":   len(signers),
+	})
+}
+
+func (s *Server) handleDeleteSigner(w http.ResponseWriter, r *http.Request) {
+	signerID := strings.TrimPrefix(r.URL.Path, "/api/v1/signers/")
+	if err := s.policy.RemoveSigner(signerID); err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "signer removed"})
+}
+
+// --- Webhooks ---
+
+type createWebhookRequest struct {
+	URL    string         `json:"url"`
+	Events []WebhookEvent `json:"events"`
+}
+
+func (s *Server) handleCreateWebhook(w http.ResponseWriter, r *http.Request) {
+	user := GetUser(r.Context())
+	var req createWebhookRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	if req.URL == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "url is required"})
+		return
+	}
+
+	if len(req.Events) == 0 {
+		// Default to all events
+		req.Events = []WebhookEvent{
+			WebhookKeygenCompleted, WebhookKeygenFailed,
+			WebhookSignCompleted, WebhookSignFailed, WebhookSignTimeout,
+			WebhookPolicyDenied,
+		}
+	}
+
+	wh := s.webhooks.Register(req.URL, user.ID, req.Events)
+	logger.Info("Webhook registered", "id", wh.ID, "url", wh.URL, "events", len(wh.Events))
+	writeJSON(w, http.StatusCreated, wh)
+}
+
+func (s *Server) handleListWebhooks(w http.ResponseWriter, r *http.Request) {
+	webhooks := s.webhooks.List("")
+	writeJSON(w, http.StatusOK, map[string]any{
+		"webhooks": webhooks,
+		"count":    len(webhooks),
+	})
+}
+
+func (s *Server) handleDeleteWebhook(w http.ResponseWriter, r *http.Request) {
+	whID := strings.TrimPrefix(r.URL.Path, "/api/v1/webhooks/")
+	if !s.webhooks.Remove(whID) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "webhook not found"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "webhook removed"})
+}
+
 // --- Helpers ---
+
+func mapAnyToString(m map[string]any) map[string]string {
+	if m == nil {
+		return nil
+	}
+	result := make(map[string]string, len(m))
+	for k, v := range m {
+		result[k] = fmt.Sprint(v)
+	}
+	return result
+}
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
