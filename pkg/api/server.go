@@ -218,7 +218,7 @@ footer a:hover{color:#666;text-decoration:none}
 <div class="container">
   <div class="stat"><div class="value">8</div><div class="label">Protocols</div></div>
   <div class="stat"><div class="value">t-of-n</div><div class="label">Configurable</div></div>
-  <div class="stat"><div class="value">8ms</div><div class="label">Signing</div></div>
+  <div class="stat"><div class="value">21ms</div><div class="label">Signing (5-of-n)</div></div>
   <div class="stat"><div class="value">4</div><div class="label">Curves</div></div>
   <div class="stat"><div class="value">17</div><div class="label">ZK Proofs</div></div>
   <div class="stat"><div class="value">PQ</div><div class="label">Quantum-Safe</div></div>
@@ -335,16 +335,30 @@ footer a:hover{color:#666;text-decoration:none}
 <section id="performance">
 <div class="container">
   <h2>Performance</h2>
-  <p class="section-sub">Benchmarked across threshold configurations. Verification is constant-time regardless of party count.</p>
+  <p class="section-sub">Real benchmarks on Apple M-series silicon. Signing is O(t) — independent of total party count. Keygen is O(n&sup2;) communication.</p>
+
+  <h3 style="color:#fff;font-size:16px;margin:32px 0 16px;font-weight:600">FROST Protocol — Full Execution (secp256k1)</h3>
   <table class="perf">
-    <thead><tr><th>Operation</th><th>3-of-5</th><th>5-of-9</th><th>7-of-11</th><th>10-of-15</th></tr></thead>
+    <thead><tr><th>Operation</th><th>3 parties</th><th>10 parties</th><th>20 parties</th><th>30 parties</th><th>50 parties</th></tr></thead>
     <tbody>
-      <tr><td class="op">Key Generation</td><td>12ms</td><td>28ms</td><td>45ms</td><td>82ms</td></tr>
-      <tr><td class="op">Signing</td><td>8ms</td><td>15ms</td><td>24ms</td><td>40ms</td></tr>
-      <tr><td class="op">Resharing (LSSS)</td><td>20ms</td><td>35ms</td><td>52ms</td><td>75ms</td></tr>
-      <tr><td class="op">Verification</td><td>2ms</td><td>2ms</td><td>2ms</td><td>2ms</td></tr>
+      <tr><td class="op">Key Generation</td><td>22ms</td><td>38ms</td><td>332ms</td><td>535ms</td><td>1.9s</td></tr>
+      <tr><td class="op">Signing (t signers)</td><td>25ms</td><td>21ms</td><td>30ms</td><td>45ms</td><td>65ms</td></tr>
+      <tr><td class="op">Verification</td><td>2ms</td><td>2ms</td><td>2ms</td><td>2ms</td><td>2ms</td></tr>
     </tbody>
   </table>
+
+  <h3 style="color:#fff;font-size:16px;margin:32px 0 16px;font-weight:600">Cryptographic Primitives at Scale</h3>
+  <table class="perf">
+    <thead><tr><th>Operation</th><th>10</th><th>100</th><th>1,000</th><th>10,000</th></tr></thead>
+    <tbody>
+      <tr><td class="op">Scalar Multiplication</td><td>6.6ms</td><td>2.3ms</td><td>23ms</td><td>232ms</td></tr>
+      <tr><td class="op">Point Addition</td><td>&lt;0.01ms</td><td>0.1ms</td><td>1.1ms</td><td>11ms</td></tr>
+      <tr><td class="op">Lagrange Coefficients</td><td>0.1ms</td><td>10ms</td><td>1.3s</td><td>115s</td></tr>
+      <tr><td class="op">Polynomial Evaluation</td><td>&lt;0.01ms</td><td>1.6ms</td><td>166ms</td><td>16.7s</td></tr>
+      <tr><td class="op">Blake3 Hashing</td><td>&lt;0.01ms</td><td>0.03ms</td><td>0.4ms</td><td>3.4ms</td></tr>
+    </tbody>
+  </table>
+  <p style="color:#525252;font-size:13px;margin-top:16px">Signing uses only t threshold signers regardless of total n. A 10-of-10,000 scheme signs as fast as 10-of-10. Keygen/reshare touch all n parties — use tiered architecture at &gt;100 nodes.</p>
 </div>
 </section>
 
