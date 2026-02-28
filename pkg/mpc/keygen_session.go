@@ -386,6 +386,7 @@ func (s *cggmp21KeygenSession) publishResult() {
 		ParticipantPeerIDs: convertFromPartyIDs(s.partyIDs),
 		Threshold:          s.threshold,
 		Version:            1,
+		Curve:              "secp256k1",
 	}
 
 	if err := s.keyinfoStore.Save(s.walletID, keyInfo); err != nil {
