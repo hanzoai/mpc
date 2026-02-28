@@ -29,6 +29,7 @@ type Server struct {
 	httpServer   *http.Server
 	natsConn     *nats.Conn
 	iam          *IAMMiddleware
+	apiKeys      *APIKeyStore
 	wallets      *WalletStore
 	policy       *policy.PolicyEngine
 	webhooks     *WebhookStore
@@ -65,9 +66,15 @@ func NewServer(cfg Config) *Server {
 		mpcCli = newMPCClientSafe(cfg.NATSConn, keyPath)
 	}
 
+	var apiKeys *APIKeyStore
+	if cfg.ConsulKV != nil {
+		apiKeys = NewAPIKeyStore(cfg.ConsulKV)
+	}
+
 	s := &Server{
 		natsConn:     cfg.NATSConn,
 		iam:          NewIAMMiddleware(cfg.IAMEndpoint),
+		apiKeys:      apiKeys,
 		wallets:      NewWalletStore(cfg.NATSConn),
 		policy:       policy.NewPolicyEngine(),
 		webhooks:     NewWebhookStore(),
@@ -86,8 +93,8 @@ func NewServer(cfg Config) *Server {
 	mux.HandleFunc("GET /auth/callback", s.handleAuthCallback)
 	mux.HandleFunc("GET /dashboard", s.handleDashboard)
 
-	// Protected endpoints (IAM auth required)
-	authed := s.iam.Wrap(http.HandlerFunc(s.routeAPI))
+	// Protected endpoints (IAM token or sk_mpc_ API key)
+	authed := s.iam.Wrap(s.apiKeys, http.HandlerFunc(s.routeAPI))
 	mux.Handle("/api/", authed)
 
 	s.httpServer = &http.Server{
@@ -169,6 +176,14 @@ func (s *Server) routeAPI(w http.ResponseWriter, r *http.Request) {
 		s.handleListWebhooks(w, r)
 	case r.Method == "DELETE" && strings.HasPrefix(path, "/api/v1/webhooks/"):
 		s.handleDeleteWebhook(w, r)
+
+	// API Keys
+	case r.Method == "POST" && path == "/api/v1/keys":
+		s.handleCreateAPIKey(w, r)
+	case r.Method == "GET" && path == "/api/v1/keys":
+		s.handleListAPIKeys(w, r)
+	case r.Method == "DELETE" && strings.HasPrefix(path, "/api/v1/keys/"):
+		s.handleDeleteAPIKey(w, r)
 
 	default:
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
@@ -1533,6 +1548,92 @@ func (s *Server) handleDeleteWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 	s.webhooks.Remove(whID)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "webhook removed"})
+}
+
+// --- API Keys ---
+
+type createAPIKeyRequest struct {
+	Name string `json:"name"`
+}
+
+func (s *Server) handleCreateAPIKey(w http.ResponseWriter, r *http.Request) {
+	if s.apiKeys == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "API key store not available"})
+		return
+	}
+	user := GetUser(r.Context())
+	var req createAPIKeyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+	if req.Name == "" {
+		req.Name = "default"
+	}
+
+	plaintext, key, err := s.apiKeys.Create(user.ID, req.Name)
+	if err != nil {
+		logger.Error("Failed to create API key", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to create API key"})
+		return
+	}
+
+	logger.Info("API key created", "id", key.ID, "name", key.Name, "owner", user.ID)
+	// Return the plaintext key exactly once — it cannot be recovered after this response.
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"id":         key.ID,
+		"name":       key.Name,
+		"key":        plaintext,
+		"created_at": key.CreatedAt,
+		"note":       "Save this key — it will not be shown again.",
+	})
+}
+
+func (s *Server) handleListAPIKeys(w http.ResponseWriter, r *http.Request) {
+	if s.apiKeys == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "API key store not available"})
+		return
+	}
+	user := GetUser(r.Context())
+	keys, err := s.apiKeys.List(user.ID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list API keys"})
+		return
+	}
+	if keys == nil {
+		keys = []*APIKey{}
+	}
+	// Never return the hash in list responses
+	type safeKey struct {
+		ID        string    `json:"id"`
+		Name      string    `json:"name"`
+		CreatedAt time.Time `json:"created_at"`
+		LastUsed  time.Time `json:"last_used,omitempty"`
+	}
+	safe := make([]safeKey, len(keys))
+	for i, k := range keys {
+		safe[i] = safeKey{ID: k.ID, Name: k.Name, CreatedAt: k.CreatedAt, LastUsed: k.LastUsed}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"keys": safe, "count": len(safe)})
+}
+
+func (s *Server) handleDeleteAPIKey(w http.ResponseWriter, r *http.Request) {
+	if s.apiKeys == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "API key store not available"})
+		return
+	}
+	user := GetUser(r.Context())
+	keyID := strings.TrimPrefix(r.URL.Path, "/api/v1/keys/")
+	if err := s.apiKeys.Revoke(keyID, user.ID); err != nil {
+		if err.Error() == "access denied" {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "access denied"})
+			return
+		}
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "key not found"})
+		return
+	}
+	logger.Info("API key revoked", "id", keyID, "owner", user.ID)
+	writeJSON(w, http.StatusOK, map[string]string{"status": "revoked"})
 }
 
 // --- Helpers ---
