@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 )
@@ -31,15 +32,27 @@ type IAMMiddleware struct {
 
 // NewIAMMiddleware creates a new IAM auth middleware.
 // iamEndpoint should be the base URL of the IAM service (e.g. "https://hanzo.id").
+// Credentials are read from MPC_IAM_CLIENT_ID and MPC_IAM_CLIENT_SECRET env vars.
 func NewIAMMiddleware(iamEndpoint string) *IAMMiddleware {
 	endpoint := strings.TrimRight(iamEndpoint, "/")
+
+	clientID := os.Getenv("MPC_IAM_CLIENT_ID")
+	if clientID == "" {
+		clientID = "hanzo-app-client-id"
+	}
+
+	clientSecret := os.Getenv("MPC_IAM_CLIENT_SECRET")
+	if clientSecret == "" {
+		panic("MPC_IAM_CLIENT_SECRET environment variable must be set")
+	}
+
 	return &IAMMiddleware{
 		userinfoURL:   endpoint + "/api/userinfo",
 		introspectURL: endpoint + "/oauth/introspect",
-		clientID:      "hanzo-app-client-id",
-		clientSecret:  "3c7c4d9817bf0993681f6da2605e07ba5949da87a32862ed",
+		clientID:      clientID,
+		clientSecret:  clientSecret,
 		client: &http.Client{
-			Timeout: 5 * time.Second,
+			Timeout: 15 * time.Second,
 		},
 	}
 }
