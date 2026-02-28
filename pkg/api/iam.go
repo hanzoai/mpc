@@ -57,9 +57,12 @@ func NewIAMMiddleware(iamEndpoint string) *IAMMiddleware {
 	}
 }
 
-// Wrap returns an http.Handler that requires a valid IAM bearer token.
-// The authenticated IAMUser is stored in the request context.
-func (m *IAMMiddleware) Wrap(next http.Handler) http.Handler {
+// Wrap returns an http.Handler that requires either:
+//   - a valid Hanzo IAM bearer token, or
+//   - a valid MPC API key (sk_mpc_...) issued via POST /api/v1/keys
+//
+// The resolved IAMUser is stored in the request context.
+func (m *IAMMiddleware) Wrap(apiKeys *APIKeyStore, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := extractBearerToken(r)
 		if token == "" {
@@ -69,6 +72,31 @@ func (m *IAMMiddleware) Wrap(next http.Handler) http.Handler {
 			return
 		}
 
+		// --- API key path ---
+		if isAPIKey(token) {
+			if apiKeys == nil {
+				writeJSON(w, http.StatusUnauthorized, map[string]string{
+					"error": "API key auth not configured",
+				})
+				return
+			}
+			key, err := apiKeys.Validate(token)
+			if err != nil {
+				writeJSON(w, http.StatusUnauthorized, map[string]string{
+					"error": "invalid API key",
+				})
+				return
+			}
+			ctx := setUser(r.Context(), &IAMUser{
+				ID:   key.OwnerID,
+				Name: key.Name,
+				Type: "api_key",
+			})
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
+
+		// --- IAM OAuth path ---
 		user, err := m.validateToken(token)
 		if err != nil {
 			writeJSON(w, http.StatusUnauthorized, map[string]string{
@@ -76,8 +104,6 @@ func (m *IAMMiddleware) Wrap(next http.Handler) http.Handler {
 			})
 			return
 		}
-
-		// Store user in context for downstream handlers
 		ctx := setUser(r.Context(), user)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
