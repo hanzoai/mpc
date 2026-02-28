@@ -13,6 +13,7 @@ type KeyInfo struct {
 	ParticipantPeerIDs []string `json:"participant_peer_ids"`
 	Threshold          int      `json:"threshold"`
 	Version            int      `json:"version"`
+	Curve              string   `json:"curve,omitempty"`
 }
 
 type store struct {

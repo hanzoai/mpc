@@ -1013,6 +1013,7 @@ func (s *Server) handleListWallets(w http.ResponseWriter, r *http.Request) {
 					"threshold": ki.Threshold,
 					"parties":   len(ki.ParticipantPeerIDs),
 					"version":   ki.Version,
+					"curve":     ki.Curve,
 				})
 			}
 		}
@@ -1061,6 +1062,7 @@ func (s *Server) handleGetWallet(w http.ResponseWriter, r *http.Request) {
 				"threshold": ki.Threshold,
 				"parties":   len(ki.ParticipantPeerIDs),
 				"version":   ki.Version,
+				"curve":     ki.Curve,
 			})
 			return
 		}
