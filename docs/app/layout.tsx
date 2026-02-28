@@ -44,6 +44,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             {children}
           </div>
         </RootProvider>
+        <script defer src="https://analytics.hanzo.ai/script.js" data-website-id="34538f3b-ae2f-4d86-a3a7-ba15f2fcd2c1" data-do-not-track="true" data-exclude-search="true" />
       </body>
     </html>
   )
