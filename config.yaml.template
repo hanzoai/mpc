@@ -15,5 +15,5 @@ backup_dir: backups
 
 # HTTP API server
 api_port: 8080
-# Hanzo IAM endpoint for unified auth (validates bearer tokens)
-iam_endpoint: "https://hanzo.id"
+# Lux IAM endpoint for unified auth (validates bearer tokens)
+iam_endpoint: "https://id.lux.network"
