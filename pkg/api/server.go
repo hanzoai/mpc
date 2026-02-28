@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	consulapi "github.com/hashicorp/consul/api"
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
 
@@ -949,6 +950,16 @@ func (s *Server) handleCreateWallet(w http.ResponseWriter, r *http.Request) {
 	// Track in wallet store before publishing
 	s.wallets.TrackWallet(walletID, req.Curve, user.ID, req.Metadata)
 
+	// Persist wallet owner to Consul so ownership survives pod restarts
+	if s.consulKV != nil {
+		if _, err := s.consulKV.Put(&consulapi.KVPair{
+			Key:   "wallet_owner/" + walletID,
+			Value: []byte(user.ID),
+		}, nil); err != nil {
+			logger.Warn("Failed to persist wallet owner to Consul", "walletID", walletID, "error", err)
+		}
+	}
+
 	// Use the MPC client which signs the message with the initiator key
 	// and publishes via JetStream (same flow as the CLI client)
 	if err := s.mpcClient.CreateWallet(walletID); err != nil {
@@ -971,11 +982,13 @@ func (s *Server) handleCreateWallet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListWallets(w http.ResponseWriter, r *http.Request) {
+	user := GetUser(r.Context())
+
 	// Merge in-memory pending wallets with Consul-backed completed wallets.
 	result := make([]map[string]any, 0)
 
-	// 1. Get in-memory wallets (pending keygen, recently created on this pod)
-	memWallets := s.wallets.ListWallets("")
+	// 1. Get in-memory wallets owned by this user
+	memWallets := s.wallets.ListWallets(user.ID)
 	seen := make(map[string]bool)
 	for _, mw := range memWallets {
 		seen[mw.ID] = true
@@ -990,7 +1003,7 @@ func (s *Server) handleListWallets(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// 2. Enumerate Consul keyinfo for wallets completed across all pods
+	// 2. Enumerate Consul keyinfo for wallets completed across all pods (filter by owner)
 	if s.consulKV != nil {
 		pairs, _, err := s.consulKV.List("threshold_keyinfo/", nil)
 		if err != nil {
@@ -999,6 +1012,12 @@ func (s *Server) handleListWallets(w http.ResponseWriter, r *http.Request) {
 			for _, pair := range pairs {
 				walletID := strings.TrimPrefix(pair.Key, "threshold_keyinfo/")
 				if walletID == "" || seen[walletID] {
+					continue
+				}
+
+				// Check ownership via wallet_owner/ prefix
+				ownerPair, _, oErr := s.consulKV.Get("wallet_owner/"+walletID, nil)
+				if oErr != nil || ownerPair == nil || string(ownerPair.Value) != user.ID {
 					continue
 				}
 				seen[walletID] = true
@@ -1026,10 +1045,15 @@ func (s *Server) handleListWallets(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetWallet(w http.ResponseWriter, r *http.Request) {
+	user := GetUser(r.Context())
 	walletID := strings.TrimPrefix(r.URL.Path, "/api/v1/wallets/")
 
 	// Check in-memory first (for pending wallets on this pod)
 	if wallet, ok := s.wallets.GetWallet(walletID); ok {
+		if wallet.Owner != user.ID {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "access denied"})
+			return
+		}
 		// Enrich with Consul keyinfo if available
 		if s.keyInfoStore != nil {
 			if ki, err := s.keyInfoStore.Get(walletID); err == nil {
@@ -1053,6 +1077,14 @@ func (s *Server) handleGetWallet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fall back to Consul keyinfo (wallet created on another pod or before restart)
+	// Verify ownership via wallet_owner/ prefix
+	if s.consulKV != nil {
+		ownerPair, _, err := s.consulKV.Get("wallet_owner/"+walletID, nil)
+		if err != nil || ownerPair == nil || string(ownerPair.Value) != user.ID {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "wallet not found"})
+			return
+		}
+	}
 	if s.keyInfoStore != nil {
 		ki, err := s.keyInfoStore.Get(walletID)
 		if err == nil {
@@ -1090,6 +1122,20 @@ func (s *Server) handleSign(w http.ResponseWriter, r *http.Request) {
 	if req.WalletID == "" || req.Message == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "wallet_id and message are required"})
 		return
+	}
+
+	// Verify wallet ownership before signing
+	if wallet, ok := s.wallets.GetWallet(req.WalletID); ok {
+		if wallet.Owner != user.ID {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "access denied"})
+			return
+		}
+	} else if s.consulKV != nil {
+		ownerPair, _, err := s.consulKV.Get("wallet_owner/"+req.WalletID, nil)
+		if err != nil || ownerPair == nil || string(ownerPair.Value) != user.ID {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "wallet not found"})
+			return
+		}
 	}
 
 	// Evaluate policy before signing
@@ -1445,6 +1491,11 @@ func (s *Server) handleCreateWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := validateWebhookURL(req.URL); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
 	if len(req.Events) == 0 {
 		// Default to all events
 		req.Events = []WebhookEvent{
@@ -1460,7 +1511,8 @@ func (s *Server) handleCreateWebhook(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListWebhooks(w http.ResponseWriter, r *http.Request) {
-	webhooks := s.webhooks.List("")
+	user := GetUser(r.Context())
+	webhooks := s.webhooks.List(user.ID)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"webhooks": webhooks,
 		"count":    len(webhooks),
@@ -1468,11 +1520,18 @@ func (s *Server) handleListWebhooks(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDeleteWebhook(w http.ResponseWriter, r *http.Request) {
+	user := GetUser(r.Context())
 	whID := strings.TrimPrefix(r.URL.Path, "/api/v1/webhooks/")
-	if !s.webhooks.Remove(whID) {
+	wh, ok := s.webhooks.Get(whID)
+	if !ok {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "webhook not found"})
 		return
 	}
+	if wh.Owner != user.ID {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "access denied"})
+		return
+	}
+	s.webhooks.Remove(whID)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "webhook removed"})
 }
 
