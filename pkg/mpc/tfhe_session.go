@@ -278,6 +278,7 @@ func (s *tfheKeygenSession) publishResult() {
 		ParticipantPeerIDs: convertFromPartyIDs(s.partyIDs),
 		Threshold:          s.threshold,
 		Version:            1,
+		Curve:              "tfhe",
 	}
 	if err := s.keyinfoStore.Save(tfheKey, keyInfo); err != nil {
 		s.logger.Error().Err(err).Msgf("Failed to save TFHE key info for %s", s.walletID)

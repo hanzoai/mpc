@@ -499,6 +499,7 @@ func (s *cggmp21ReshareSession) publishResult() {
 		ParticipantPeerIDs: s.newNodeIDs,
 		Threshold:          s.newThreshold,
 		Version:            1, // Increment version on reshare
+		Curve:              "secp256k1",
 	}
 
 	if err := s.keyinfoStore.Save(s.walletID, keyInfo); err != nil {
