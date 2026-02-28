@@ -3,6 +3,8 @@ package policy
 
 import (
 	"context"
+	"crypto/ed25519"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -204,9 +206,24 @@ func (w *ApprovalWorkflow) Approve(ctx context.Context, requestID string, approv
 		return nil, fmt.Errorf("signer is not active: %s", signer.Status)
 	}
 
-	// TODO: Verify Ed25519 signature of approval
-	// This would verify that the approval.Signature is a valid Ed25519 signature
-	// of the transaction data signed by the signer's public key
+	// Verify Ed25519 signature of approval if the signer has a public key configured
+	if signer.PublicKey != "" && approval.Signature != "" {
+		pubKeyBytes, err := hex.DecodeString(signer.PublicKey)
+		if err != nil || len(pubKeyBytes) != ed25519.PublicKeySize {
+			return nil, fmt.Errorf("signer has invalid public key")
+		}
+		sigBytes, err := hex.DecodeString(approval.Signature)
+		if err != nil {
+			return nil, fmt.Errorf("invalid signature encoding")
+		}
+		// Canonical message: "<request_id>:<transaction_id>"
+		msg := []byte(requestID + ":" + req.TransactionID)
+		if !ed25519.Verify(ed25519.PublicKey(pubKeyBytes), msg, sigBytes) {
+			return nil, fmt.Errorf("signature verification failed")
+		}
+	} else if signer.PublicKey != "" && approval.Signature == "" {
+		return nil, fmt.Errorf("signature is required for signer %s", approval.SignerID)
+	}
 
 	// Add approval
 	approval.SignerName = signer.Name
