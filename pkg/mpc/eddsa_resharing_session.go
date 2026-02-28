@@ -493,6 +493,7 @@ func (s *eddsaReshareSession) publishResult() {
 		ParticipantPeerIDs: s.newNodeIDs,
 		Threshold:          s.newThreshold,
 		Version:            1, // Increment version on reshare
+		Curve:              "ed25519",
 	}
 
 	if err := s.keyinfoStore.Save(s.walletID, keyInfo); err != nil {
