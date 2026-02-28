@@ -367,6 +367,7 @@ func (s *lssKeygenSession) saveConfig() error {
 		ParticipantPeerIDs: partyIDStrings,
 		Threshold:          s.threshold,
 		Version:            1,
+		Curve:              "secp256k1",
 	}
 
 	if err := s.keyinfoStore.Save(s.walletID, keyInfo); err != nil {
