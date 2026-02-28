@@ -42,7 +42,7 @@ type Server struct {
 // Config holds configuration for the API server.
 type Config struct {
 	Port             int
-	IAMEndpoint      string // e.g. "https://hanzo.id"
+	IAMEndpoint      string // e.g. "https://id.lux.network"
 	NATSConn         *nats.Conn
 	ConsulKV         infra.ConsulKV // Consul KV for wallet metadata
 	InitiatorKeyPath string         // path to event_initiator.key (Ed25519 private key)
@@ -203,7 +203,7 @@ const landingHTML = `<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hanzo MPC — Enterprise Digital Asset Infrastructure</title>
+<title>Lux MPC — Enterprise Digital Asset Infrastructure</title>
 <meta name="description" content="Self-sovereign wallet infrastructure with multi-party computation. Configurable t-of-n threshold signing, 8 cryptographic protocols, multi-chain support. No single point of failure.">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -296,13 +296,13 @@ footer a:hover{color:#666;text-decoration:none}
 <div class="container">
   <a href="/" class="logo">
     <svg viewBox="0 0 67 67" xmlns="http://www.w3.org/2000/svg"><rect width="67" height="67" fill="#000"/><path d="M22.21 67V44.6369H0V67H22.21Z" fill="#fff"/><path d="M0 44.6369L22.21 46.8285V44.6369H0Z" fill="#ddd"/><path d="M66.7038 22.3184H22.2534L0.0878906 44.6367H44.4634L66.7038 22.3184Z" fill="#fff"/><path d="M22.21 0H0V22.3184H22.21V0Z" fill="#fff"/><path d="M66.7198 0H44.5098V22.3184H66.7198V0Z" fill="#fff"/><path d="M66.6753 22.3185L44.5098 20.0822V22.3185H66.6753Z" fill="#ddd"/><path d="M66.7198 67V44.6369H44.5098V67H66.7198Z" fill="#fff"/></svg>
-    Hanzo MPC
+    Lux MPC
   </a>
   <div class="nav-links">
     <a href="#protocols">Protocols</a>
     <a href="#chains">Chains</a>
     <a href="#performance">Performance</a>
-    <a href="https://hanzo.ai/docs/mpc">Docs</a>
+    <a href="https://docs.lux.network/mpc">Docs</a>
     <a href="#" onclick="startLogin()" class="btn btn-primary btn-sm">Sign In</a>
   </div>
 </div>
@@ -314,9 +314,9 @@ footer a:hover{color:#666;text-decoration:none}
   <h1>Digital Asset Custody<br><span>Without Compromise</span></h1>
   <p class="subtitle">Enterprise-grade multi-party computation with 8 cryptographic protocols, configurable t-of-n thresholds, multi-chain support, and post-quantum security. Your keys never exist in a single location.</p>
   <div class="ctas">
-    <a href="#" onclick="startLogin()" class="btn btn-primary">Get Started with Hanzo ID</a>
+    <a href="#" onclick="startLogin()" class="btn btn-primary">Sign In with Lux ID</a>
     <a href="/health" class="btn btn-outline">API Status</a>
-    <a href="https://github.com/hanzoai/mpc" class="btn btn-outline">GitHub</a>
+    <a href="https://github.com/luxfi/mpc" class="btn btn-outline">GitHub</a>
   </div>
 </div>
 </div>
@@ -408,7 +408,7 @@ footer a:hover{color:#666;text-decoration:none}
     </div>
     <div class="feature">
       <h3>Unified IAM</h3>
-      <p>All operations authenticated via Hanzo ID. Bearer token validation, role-based access control, and audit logging for compliance.</p>
+      <p>All operations authenticated via Lux ID. Bearer token validation, role-based access control, and audit logging for compliance.</p>
     </div>
   </div>
 </div>
@@ -496,30 +496,29 @@ footer a:hover{color:#666;text-decoration:none}
 <div class="cta-section">
 <div class="container">
   <h2>Ready to secure your digital assets?</h2>
-  <p>Get started with Hanzo MPC in minutes. Self-hosted or managed.</p>
+  <p>Get started with Lux MPC in minutes. Self-hosted or managed.</p>
   <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
-    <a href="#" onclick="startLogin()" class="btn btn-primary">Sign In with Hanzo ID</a>
-    <a href="https://hanzo.industries/contact" class="btn btn-outline">Contact Sales</a>
-    <a href="https://hanzo.ai/docs/mpc" class="btn btn-outline">Read the Docs</a>
+    <a href="#" onclick="startLogin()" class="btn btn-primary">Sign In with Lux ID</a>
+    <a href="https://lux.network/contact" class="btn btn-outline">Contact Sales</a>
+    <a href="https://docs.lux.network/mpc" class="btn btn-outline">Read the Docs</a>
   </div>
 </div>
 </div>
 
 <footer>
 <div class="container">
-  <span>&copy; 2026 Hanzo AI Inc. &middot; Techstars '17</span>
+  <span>&copy; 2026 Lux Network</span>
   <div style="display:flex;gap:20px">
-    <a href="https://hanzo.ai">hanzo.ai</a>
-    <a href="https://hanzo.industries">hanzo.industries</a>
-    <a href="https://hanzo.network">hanzo.network</a>
-    <a href="https://github.com/hanzoai/mpc">GitHub</a>
+    <a href="https://lux.network">lux.network</a>
+    <a href="https://docs.lux.network/mpc">Docs</a>
+    <a href="https://github.com/luxfi/mpc">GitHub</a>
   </div>
 </div>
 </footer>
 <script>
 // PKCE OAuth — client-side, no backend secret needed
-const IAM_URL = 'https://hanzo.id';
-const CLIENT_ID = 'hanzo-app-client-id';
+const IAM_URL = 'https://id.lux.network';
+const CLIENT_ID = 'lux-mpc-client';
 const REDIRECT_URI = location.origin + '/auth/callback';
 const SCOPE = 'openid profile email';
 
@@ -578,7 +577,7 @@ const authCallbackHTML = `<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hanzo MPC — Authenticating...</title>
+<title>Lux MPC — Authenticating...</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#000;color:#d4d4d4;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center}
@@ -595,12 +594,12 @@ a{color:#fff;text-decoration:underline}
 <div class="card">
   <div class="spinner" id="spinner"></div>
   <h1>Authenticating...</h1>
-  <p id="status">Exchanging authorization code with Hanzo ID</p>
+  <p id="status">Exchanging authorization code with Lux ID</p>
   <p class="error" id="error"></p>
 </div>
 <script>
-const IAM_URL = 'https://hanzo.id';
-const CLIENT_ID = 'hanzo-app-client-id';
+const IAM_URL = 'https://id.lux.network';
+const CLIENT_ID = 'lux-mpc-client';
 const REDIRECT_URI = location.origin + '/auth/callback';
 
 async function handleCallback() {
@@ -685,7 +684,7 @@ const dashboardHTML = `<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hanzo MPC — Dashboard</title>
+<title>Lux MPC — Dashboard</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#000;color:#d4d4d4;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;min-height:100vh;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
@@ -741,12 +740,12 @@ footer .container{display:flex;justify-content:space-between;font-size:13px;colo
 <div class="container">
   <a href="/" class="logo">
     <svg viewBox="0 0 67 67" xmlns="http://www.w3.org/2000/svg"><rect width="67" height="67" fill="#000"/><path d="M22.21 67V44.6369H0V67H22.21Z" fill="#fff"/><path d="M0 44.6369L22.21 46.8285V44.6369H0Z" fill="#ddd"/><path d="M66.7038 22.3184H22.2534L0.0878906 44.6367H44.4634L66.7038 22.3184Z" fill="#fff"/><path d="M22.21 0H0V22.3184H22.21V0Z" fill="#fff"/><path d="M66.7198 0H44.5098V22.3184H66.7198V0Z" fill="#fff"/><path d="M66.6753 22.3185L44.5098 20.0822V22.3185H66.6753Z" fill="#ddd"/><path d="M66.7198 67V44.6369H44.5098V67H66.7198Z" fill="#fff"/></svg>
-    Hanzo MPC
+    Lux MPC
   </a>
   <div class="nav-links">
     <a href="/">Home</a>
-    <a href="https://hanzo.ai/docs/mpc">Docs</a>
-    <a href="https://github.com/hanzoai/mpc">GitHub</a>
+    <a href="https://docs.lux.network/mpc">Docs</a>
+    <a href="https://github.com/luxfi/mpc">GitHub</a>
     <a href="#" onclick="logout()" class="btn btn-outline btn-sm">Sign Out</a>
   </div>
 </div>
@@ -796,14 +795,14 @@ footer .container{display:flex;justify-content:space-between;font-size:13px;colo
 
 <footer>
 <div class="container">
-  <span>&copy; 2026 Hanzo AI Inc.</span>
-  <a href="https://hanzo.ai" style="color:#333">hanzo.ai</a>
+  <span>&copy; 2026 Lux Network</span>
+  <a href="https://lux.network" style="color:#333">lux.network</a>
 </div>
 </footer>
 
 <script>
 const API_BASE = location.origin;
-const IAM_URL = 'https://hanzo.id';
+const IAM_URL = 'https://id.lux.network';
 const token = localStorage.getItem('mpc_token');
 
 if (!token) {

@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-// IAMUser represents the authenticated user from hanzo.id
+// IAMUser represents the authenticated user from Lux IAM (id.lux.network)
 type IAMUser struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
@@ -21,7 +21,7 @@ type IAMUser struct {
 	Type        string `json:"type"`
 }
 
-// IAMMiddleware validates bearer tokens against Hanzo IAM (hanzo.id)
+// IAMMiddleware validates bearer tokens against Lux IAM (id.lux.network)
 type IAMMiddleware struct {
 	userinfoURL    string
 	introspectURL  string
@@ -31,7 +31,7 @@ type IAMMiddleware struct {
 }
 
 // NewIAMMiddleware creates a new IAM auth middleware.
-// iamEndpoint should be the base URL of the IAM service (e.g. "https://hanzo.id").
+// iamEndpoint should be the base URL of the IAM service (e.g. "https://id.lux.network").
 // Credentials are read from MPC_IAM_CLIENT_ID and MPC_IAM_CLIENT_SECRET env vars.
 func NewIAMMiddleware(iamEndpoint string) *IAMMiddleware {
 	endpoint := strings.TrimRight(iamEndpoint, "/")
