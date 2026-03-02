@@ -1,5 +1,6 @@
+# syntax=docker/dockerfile:1
 # Build stage - uses Go's native cross-compilation (no QEMU needed)
-FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS builder
 
 ARG TARGETARCH
 ARG TARGETOS=linux
@@ -12,14 +13,19 @@ WORKDIR /build
 COPY go.mod go.sum ./
 
 # Download dependencies
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
 
 # Copy source code
 COPY . .
 
 # Cross-compile for target platform using Go's native support
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o hanzo-mpc ./cmd/hanzo-mpc
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o hanzo-mpc-cli ./cmd/hanzo-mpc-cli
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o hanzo-mpc ./cmd/hanzo-mpc
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o hanzo-mpc-cli ./cmd/hanzo-mpc-cli
 
 # Runtime stage
 FROM alpine:latest
