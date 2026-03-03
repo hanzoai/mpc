@@ -4,7 +4,7 @@ go 1.26
 
 require (
 	github.com/dgraph-io/badger/v4 v4.9.0
-	github.com/ethereum/go-ethereum v1.15.11
+	github.com/luxfi/geth v1.15.11
 	github.com/google/uuid v1.6.0
 	github.com/hanzoai/mpc v0.0.0
 	github.com/hashicorp/consul/api v1.33.2
