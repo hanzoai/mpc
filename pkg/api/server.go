@@ -547,7 +547,7 @@ async function startLogin() {
     code_challenge_method: 'S256',
     state: state,
   });
-  location.href = IAM_URL + '/login/oauth/authorize?' + params;
+  location.href = IAM_URL + '/oauth/authorize?' + params;
 }
 // Check if already logged in
 if (localStorage.getItem('mpc_token')) {
@@ -645,7 +645,7 @@ async function handleCallback() {
     });
     if (verifier) body.set('code_verifier', verifier);
 
-    const resp = await fetch(IAM_URL + '/api/login/oauth/access_token', {
+    const resp = await fetch(IAM_URL + '/oauth/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
       body: body,
