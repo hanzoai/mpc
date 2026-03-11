@@ -7,7 +7,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/hashicorp/consul/api"
 	"github.com/samber/lo"
 
 	"github.com/hanzoai/mpc/pkg/infra"
@@ -37,16 +36,16 @@ type registry struct {
 	mu          sync.RWMutex
 	ready       bool // ready is true when all peers are ready
 
-	consulKV infra.ConsulKV
+	kv infra.KV
 }
 
 func NewRegistry(
 	nodeID string,
 	peerNodeIDs []string,
-	consulKV infra.ConsulKV,
+	kv infra.KV,
 ) *registry {
 	return &registry{
-		consulKV:    consulKV,
+		kv:          kv,
 		nodeID:      nodeID,
 		peerNodeIDs: getPeerIDsExceptSelf(nodeID, peerNodeIDs),
 		readyMap:    make(map[string]bool),
@@ -96,12 +95,7 @@ func (r *registry) registerReadyPairs(peerIDs []string) {
 func (r *registry) Ready() error {
 	k := r.readyKey(r.nodeID)
 
-	kv := &api.KVPair{
-		Key:   k,
-		Value: []byte("true"),
-	}
-
-	_, err := r.consulKV.Put(kv, nil)
+	err := r.kv.Put(k, []byte("true"))
 	if err != nil {
 		return fmt.Errorf("Put ready key failed: %w", err)
 	}
@@ -114,7 +108,7 @@ func (r *registry) WatchPeersReady() {
 	go r.logReadyStatus()
 	// first tick is executed immediately
 	for ; true; <-ticker.C {
-		pairs, _, err := r.consulKV.List("ready/", nil)
+		pairs, err := r.kv.List("ready/")
 		if err != nil {
 			logger.Error("List ready keys failed", err)
 		}
@@ -178,7 +172,7 @@ func (r *registry) GetReadyPeersIncludeSelf() []string {
 	return peerIDs
 }
 
-func (r *registry) getReadyPeersFromKVStore(kvPairs api.KVPairs) []string {
+func (r *registry) getReadyPeersFromKVStore(kvPairs []*infra.KVPair) []string {
 	var peers []string
 	for _, k := range kvPairs {
 		var peerNodeID string
@@ -211,7 +205,7 @@ func (r *registry) GetTotalPeersCount() int64 {
 func (r *registry) Resign() error {
 	k := r.readyKey(r.nodeID)
 
-	_, err := r.consulKV.Delete(k, nil)
+	err := r.kv.Delete(k)
 	if err != nil {
 		return fmt.Errorf("Delete ready key failed: %w", err)
 	}
