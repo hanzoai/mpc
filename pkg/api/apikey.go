@@ -9,8 +9,6 @@ import (
 	"strings"
 	"time"
 
-	consulapi "github.com/hashicorp/consul/api"
-
 	"github.com/hanzoai/mpc/pkg/infra"
 	"github.com/hanzoai/mpc/pkg/logger"
 )
@@ -31,16 +29,16 @@ type APIKey struct {
 	LastUsed  time.Time `json:"last_used,omitempty"`
 }
 
-// APIKeyStore persists API keys in Consul KV.
+// APIKeyStore persists API keys in the cluster KV store.
 type APIKeyStore struct {
-	consulKV infra.ConsulKV
+	kv infra.KV
 }
 
-func NewAPIKeyStore(consulKV infra.ConsulKV) *APIKeyStore {
-	return &APIKeyStore{consulKV: consulKV}
+func NewAPIKeyStore(kv infra.KV) *APIKeyStore {
+	return &APIKeyStore{kv: kv}
 }
 
-// Create generates sk_mpc_<hex>, stores its SHA-256 in Consul, returns plaintext once.
+// Create generates sk_mpc_<hex>, stores its SHA-256, returns plaintext once.
 func (s *APIKeyStore) Create(ownerID, name string) (plaintext string, key *APIKey, err error) {
 	raw := make([]byte, 32)
 	if _, err = rand.Read(raw); err != nil {
@@ -60,10 +58,7 @@ func (s *APIKeyStore) Create(ownerID, name string) (plaintext string, key *APIKe
 	}
 
 	data, _ := json.Marshal(key)
-	if _, err = s.consulKV.Put(&consulapi.KVPair{
-		Key:   apiKeyConsulPrefix + keyHash,
-		Value: data,
-	}, nil); err != nil {
+	if err = s.kv.Put(apiKeyConsulPrefix+keyHash, data); err != nil {
 		return "", nil, fmt.Errorf("store: %w", err)
 	}
 	return plaintext, key, nil
@@ -71,27 +66,27 @@ func (s *APIKeyStore) Create(ownerID, name string) (plaintext string, key *APIKe
 
 // Validate resolves a plaintext API key to its stored record, updating LastUsed async.
 func (s *APIKeyStore) Validate(plaintext string) (*APIKey, error) {
-	if s.consulKV == nil {
-		return nil, fmt.Errorf("consul unavailable")
+	if s.kv == nil {
+		return nil, fmt.Errorf("kv store unavailable")
 	}
 	h := sha256.Sum256([]byte(plaintext))
 	keyHash := hex.EncodeToString(h[:])
 
-	pair, _, err := s.consulKV.Get(apiKeyConsulPrefix+keyHash, nil)
-	if err != nil || pair == nil {
+	data, err := s.kv.Get(apiKeyConsulPrefix + keyHash)
+	if err != nil || data == nil {
 		return nil, fmt.Errorf("invalid API key")
 	}
 
 	var key APIKey
-	if err := json.Unmarshal(pair.Value, &key); err != nil {
+	if err := json.Unmarshal(data, &key); err != nil {
 		return nil, fmt.Errorf("parse key: %w", err)
 	}
 
 	// Update last_used without blocking the request
 	go func() {
 		key.LastUsed = time.Now().UTC()
-		if data, err := json.Marshal(key); err == nil {
-			if _, err := s.consulKV.Put(&consulapi.KVPair{Key: pair.Key, Value: data}, nil); err != nil {
+		if updated, err := json.Marshal(key); err == nil {
+			if err := s.kv.Put(apiKeyConsulPrefix+key.KeyHash, updated); err != nil {
 				logger.Warn("Failed to update API key last_used", "error", err)
 			}
 		}
@@ -102,7 +97,7 @@ func (s *APIKeyStore) Validate(plaintext string) (*APIKey, error) {
 
 // List returns all keys belonging to ownerID.
 func (s *APIKeyStore) List(ownerID string) ([]*APIKey, error) {
-	pairs, _, err := s.consulKV.List(apiKeyConsulPrefix, nil)
+	pairs, err := s.kv.List(apiKeyConsulPrefix)
 	if err != nil {
 		return nil, fmt.Errorf("list: %w", err)
 	}
@@ -118,7 +113,7 @@ func (s *APIKeyStore) List(ownerID string) ([]*APIKey, error) {
 
 // Revoke deletes the key with the given short ID if it belongs to ownerID.
 func (s *APIKeyStore) Revoke(shortID, ownerID string) error {
-	pairs, _, err := s.consulKV.List(apiKeyConsulPrefix, nil)
+	pairs, err := s.kv.List(apiKeyConsulPrefix)
 	if err != nil {
 		return fmt.Errorf("list: %w", err)
 	}
@@ -131,7 +126,7 @@ func (s *APIKeyStore) Revoke(shortID, ownerID string) error {
 			if k.OwnerID != ownerID {
 				return fmt.Errorf("access denied")
 			}
-			if _, err := s.consulKV.Delete(p.Key, nil); err != nil {
+			if err := s.kv.Delete(p.Key); err != nil {
 				return fmt.Errorf("delete: %w", err)
 			}
 			return nil
