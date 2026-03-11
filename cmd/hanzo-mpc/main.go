@@ -158,6 +158,12 @@ func runNode(ctx context.Context, c *cli.Command) error {
 			logger.Fatal("Failed to load peers from bootstrap KV", err)
 		}
 
+		// Resolve this node's UUID from the peers list for consensus identity
+		consensusNodeID := config.GetNodeID(nodeName, peers)
+		if consensusNodeID == "" {
+			logger.Fatal("Node not found in peer list", fmt.Errorf("no UUID for %s in bootstrap", nodeName))
+		}
+
 		// Build validator set with dual keys (Ed25519 + ML-DSA-65).
 		// Each node's keys are loaded from the identity directory.
 		// ML-DSA-65 public keys stored as {name}_pq_identity.json
@@ -223,7 +229,7 @@ func runNode(ctx context.Context, c *cli.Command) error {
 		}
 
 		ckv, err := infra.NewConsensusKV(infra.ConsensusKVConfig{
-			NodeID:       nodeName,
+			NodeID:       consensusNodeID,
 			EdPrivateKey: edPrivKey,
 			PQPrivateKey: pqPrivKey,
 			Signer:       consensusSigner,
