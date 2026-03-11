@@ -106,8 +106,19 @@ func (r *registry) Ready() error {
 func (r *registry) WatchPeersReady() {
 	ticker := time.NewTicker(ReadinessCheckPeriod)
 	go r.logReadyStatus()
+	// Re-announce readiness periodically until all peers are discovered.
+	// This handles the case where early consensus proposals fail during
+	// rolling restarts (not enough validators for quorum yet).
+	reannounceInterval := 5 * time.Second
+	lastReannounce := time.Time{}
 	// first tick is executed immediately
 	for ; true; <-ticker.C {
+		if !r.ArePeersReady() && time.Since(lastReannounce) >= reannounceInterval {
+			if err := r.kv.Put(r.readyKey(r.nodeID), []byte("true")); err != nil {
+				logger.Error("Re-announce readiness failed", err)
+			}
+			lastReannounce = time.Now()
+		}
 		pairs, err := r.kv.List("ready/")
 		if err != nil {
 			logger.Error("List ready keys failed", err)
