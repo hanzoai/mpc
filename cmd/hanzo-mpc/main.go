@@ -2,15 +2,20 @@ package main
 
 import (
 	"context"
+	"crypto/ed25519"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	consulapi "github.com/hashicorp/consul/api"
+	pqmldsa "github.com/luxfi/crypto/mldsa"
 	"github.com/nats-io/nats.go"
 	"github.com/spf13/viper"
 	"github.com/urfave/cli/v3"
@@ -32,19 +37,19 @@ import (
 )
 
 const (
-	Version                    = "0.3.1"
+	Version                    = "0.4.0"
 	DefaultBackupPeriodSeconds = 300 // (5 minutes)
 )
 
 func main() {
 	app := &cli.Command{
-		Name:    "lux-mpc",
-		Usage:   "Lux Multi-Party Computation node for threshold signatures",
+		Name:    "hanzo-mpc",
+		Usage:   "Hanzo MPC node — threshold signatures powered by consensus",
 		Version: Version,
 		Commands: []*cli.Command{
 			{
 				Name:  "start",
-				Usage: "Start a Lux MPC node",
+				Usage: "Start an MPC node",
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:     "name",
@@ -75,7 +80,7 @@ func main() {
 				Name:  "version",
 				Usage: "Display detailed version information",
 				Action: func(ctx context.Context, c *cli.Command) error {
-					fmt.Printf("lux-mpc version %s\n", Version)
+					fmt.Printf("hanzo-mpc version %s\n", Version)
 					return nil
 				},
 			},
@@ -107,15 +112,173 @@ func runNode(ctx context.Context, c *cli.Command) error {
 		checkRequiredConfigValues()
 	}
 
-	consulClient := infra.GetConsulClient(environment)
-	keyinfoStore := keyinfo.NewStore(consulClient.KV())
-	peers := LoadPeersFromConsul(consulClient)
+	// --- KV Backend Selection ---
+	// Supported backends: "consensus" (default), "nats", "consul"
+	// The backend determines how cluster state (peers, keyinfo, wallets, API keys) is stored.
+	//
+	// "consensus" — Lux consensus-backed KV (blockchain-native, post-quantum finality)
+	// "nats"      — NATS JetStream KV (lightweight, good for dev/staging)
+	// "consul"    — HashiCorp Consul KV (legacy, backward compatibility)
+	kvBackend := viper.GetString("kv_backend")
+	if kvBackend == "" {
+		kvBackend = "consensus"
+	}
+
+	// NATS is required for all backends (messaging + consensus transport)
+	natsConn, err := GetNATSConnection(environment)
+	if err != nil {
+		logger.Fatal("Failed to connect to NATS", err)
+	}
+	defer natsConn.Close()
+
+	var clusterKV infra.KV
+	var peers []config.Peer
+
+	switch kvBackend {
+	case "consensus":
+		logger.Info("Using consensus-backed KV (private MPC blockchain)")
+		chainID := viper.GetString("consensus.chain_id")
+		if chainID == "" {
+			chainID = "mpc"
+		}
+
+		// Bootstrap: use a temporary NATS KV to discover peers first.
+		// Peers are registered by hanzo-mpc-cli register-peers into the bootstrap bucket.
+		// Once peers are known, they become the validator set for the private chain.
+		bootstrapBucket := viper.GetString("consensus.bootstrap_bucket")
+		if bootstrapBucket == "" {
+			bootstrapBucket = "mpc-bootstrap"
+		}
+		bootstrapKV, err := infra.NewNatsKV(natsConn, bootstrapBucket)
+		if err != nil {
+			logger.Fatal("Failed to create bootstrap KV", err)
+		}
+		peers, err = config.LoadPeersFromKV(bootstrapKV, "mpc_peers/")
+		if err != nil {
+			logger.Fatal("Failed to load peers from bootstrap KV", err)
+		}
+
+		// Build validator set with dual keys (Ed25519 + ML-DSA-65).
+		// Each node's keys are loaded from the identity directory.
+		// ML-DSA-65 public keys stored as {name}_pq_identity.json
+		validators := make(map[string]*infra.ValidatorKeys)
+		for _, peer := range peers {
+			vk := &infra.ValidatorKeys{}
+
+			// Load Ed25519 public key
+			edPub, keyErr := loadPeerPublicKey(peer.Name)
+			if keyErr != nil {
+				logger.Warn("Could not load Ed25519 key for peer",
+					"peer", peer.Name, "error", keyErr)
+			} else {
+				vk.EdPubKey = edPub
+			}
+
+			// Load ML-DSA-65 public key (optional — may not be provisioned yet)
+			pqPub, keyErr := loadPeerPQPublicKey(peer.Name)
+			if keyErr != nil {
+				logger.Info("No ML-DSA-65 key for peer (will auto-generate)",
+					"peer", peer.Name)
+			} else {
+				vk.PQPubKey = pqPub
+			}
+
+			validators[peer.ID] = vk
+		}
+
+		// Load this node's private keys for signing.
+		// Prefers KMS/HSM if configured; falls back to local files.
+		var edPrivKey ed25519.PrivateKey
+		var pqPrivKey *pqmldsa.PrivateKey
+		var consensusSigner infra.Signer
+		var signerKeyID string
+
+		hsmProv := initHSMProvider()
+		if hsmProv != nil && hsmProv.Name() != "file" {
+			signerKeyID = fmt.Sprintf("%s_consensus", nodeName)
+			consensusSigner = &hsmSignerAdapter{provider: hsmProv}
+			logger.Info("Consensus signing via KMS/HSM", "provider", hsmProv.Name(), "keyID", signerKeyID)
+		} else {
+			// Ed25519 key from file
+			privKeyData, keyErr := loadNodePrivateKey(nodeName)
+			if keyErr != nil {
+				logger.Warn("Could not load Ed25519 private key", "error", keyErr)
+			} else {
+				edPrivKey = privKeyData
+			}
+
+			// ML-DSA-65 key from file (auto-generated on first run if missing)
+			pqKey, keyErr := loadNodePQPrivateKey(nodeName)
+			if keyErr != nil {
+				logger.Info("ML-DSA-65 key not found, will auto-generate", "node", nodeName)
+			} else {
+				pqPrivKey = pqKey
+			}
+		}
+
+		// Threshold for consensus finality (default: same as MPC threshold)
+		threshold := viper.GetInt("consensus.threshold")
+		if threshold == 0 {
+			threshold = len(validators)/2 + 1
+		}
+
+		ckv, err := infra.NewConsensusKV(infra.ConsensusKVConfig{
+			NodeID:       nodeName,
+			EdPrivateKey: edPrivKey,
+			PQPrivateKey: pqPrivKey,
+			Signer:       consensusSigner,
+			SignerKeyID:  signerKeyID,
+			Validators:   validators,
+			Threshold:    threshold,
+			NATSConn:     natsConn,
+			ChainID:      chainID,
+		})
+		if err != nil {
+			logger.Fatal("Failed to create consensus KV", err)
+		}
+		defer ckv.Close()
+		clusterKV = ckv
+
+	case "nats":
+		logger.Info("Using NATS JetStream KV")
+		bucket := viper.GetString("nats.kv_bucket")
+		if bucket == "" {
+			bucket = "mpc-state"
+		}
+		nkv, err := infra.NewNatsKV(natsConn, bucket)
+		if err != nil {
+			logger.Fatal("Failed to create NATS KV", err)
+		}
+		clusterKV = nkv
+
+		peers, err = config.LoadPeersFromKV(clusterKV, "mpc_peers/")
+		if err != nil {
+			logger.Fatal("Failed to load peers from NATS KV", err)
+		}
+
+	case "consul":
+		logger.Info("Using Consul KV (legacy mode)")
+		consulClient := infra.GetConsulClient(environment)
+		clusterKV = infra.NewConsulKVAdapter(consulClient.KV())
+
+		// Use native Consul loading for full backward compatibility
+		peers = LoadPeersFromConsul(consulClient)
+
+	default:
+		logger.Fatal("Unknown kv_backend", fmt.Errorf("unsupported: %s (use: consensus, nats, consul)", kvBackend))
+	}
+
+	keyinfoStore := keyinfo.NewStore(clusterKV)
 
 	// Get the UUID for this node from peers list
-	// This UUID is what we use for MPC protocol identification
 	nodeID := GetIDFromName(nodeName, peers)
-	displayNodeID := fmt.Sprintf("lux-%s-%s", environment, nodeName)
-	logger.Info("Starting MPC node", "nodeID", nodeID, "displayID", displayNodeID, "environment", environment)
+	displayNodeID := fmt.Sprintf("hanzo-%s-%s", environment, nodeName)
+	logger.Info("Starting MPC node",
+		"nodeID", nodeID,
+		"displayID", displayNodeID,
+		"environment", environment,
+		"kv_backend", kvBackend,
+	)
 
 	badgerKV := NewBadgerKV(nodeName, nodeID)
 	defer badgerKV.Close()
@@ -142,12 +305,6 @@ func runNode(ctx context.Context, c *cli.Command) error {
 	if err != nil {
 		logger.Fatal("Failed to create identity store", err)
 	}
-
-	natsConn, err := GetNATSConnection(environment)
-	if err != nil {
-		logger.Fatal("Failed to connect to NATS", err)
-	}
-	defer natsConn.Close()
 
 	pubsub := messaging.NewNATSPubSub(natsConn)
 	keygenBroker, err := messaging.NewJetStreamBroker(ctx, natsConn, event.KeygenBrokerStream, []string{
@@ -180,7 +337,7 @@ func runNode(ctx context.Context, c *cli.Command) error {
 	logger.Info("Node is running", "peerID", nodeID, "name", nodeName)
 
 	peerNodeIDs := GetPeerIDs(peers)
-	peerRegistry := mpc.NewRegistry(nodeID, peerNodeIDs, consulClient.KV())
+	peerRegistry := mpc.NewRegistry(nodeID, peerNodeIDs, clusterKV)
 
 	mpcNode := mpc.NewNode(
 		nodeID,
@@ -235,7 +392,7 @@ func runNode(ctx context.Context, c *cli.Command) error {
 		Port:             apiPort,
 		IAMEndpoint:      iamEndpoint,
 		NATSConn:         natsConn,
-		ConsulKV:         consulClient.KV(),
+		KV:               clusterKV,
 		InitiatorKeyPath: filepath.Join(".", "event_initiator.key"),
 		HSMProvider:      hsmProvider,
 	})
@@ -372,7 +529,7 @@ func promptForSensitiveCredentials() {
 	fmt.Printf("Event initiator public key set: %s\n", maskedKey)
 
 	viper.Set("event_initiator_pubkey", initiatorKey)
-	fmt.Println("\n✓ Configuration complete!")
+	fmt.Println("\nConfiguration complete!")
 }
 
 // maskString shows the first and last character of a string, replacing the middle with asterisks
@@ -414,7 +571,7 @@ func NewConsulClient(addr string) *consulapi.Client {
 	return consulClient
 }
 
-func LoadPeersFromConsul(consulClient *consulapi.Client) []config.Peer { // Create a Consul Key-Value store client
+func LoadPeersFromConsul(consulClient *consulapi.Client) []config.Peer {
 	kv := consulClient.KV()
 	peers, err := config.LoadPeersFromConsul(kv, "mpc_peers/")
 	if err != nil {
@@ -531,6 +688,108 @@ func GetNATSConnection(environment string) (*nats.Conn, error) {
 	}
 
 	return nats.Connect(url, opts...)
+}
+
+// hsmSignerAdapter wraps hsm.Provider to implement infra.Signer.
+// This allows consensus to sign via KMS/HSM without exposing the private key.
+type hsmSignerAdapter struct {
+	provider hsm.Provider
+}
+
+func (h *hsmSignerAdapter) Sign(keyID string, message []byte) ([]byte, error) {
+	return h.provider.Sign(context.Background(), keyID, message)
+}
+
+// loadPeerPublicKey loads an Ed25519 public key from the identity directory for a peer.
+func loadPeerPublicKey(peerName string) (ed25519.PublicKey, error) {
+	identityPath := filepath.Join("identity", peerName+"_identity.json")
+	data, err := os.ReadFile(identityPath)
+	if err != nil {
+		return nil, fmt.Errorf("read identity file %s: %w", identityPath, err)
+	}
+
+	var ident struct {
+		PublicKey string `json:"public_key"`
+	}
+	if err := json.Unmarshal(data, &ident); err != nil {
+		return nil, fmt.Errorf("parse identity file: %w", err)
+	}
+
+	pubKeyBytes, err := hex.DecodeString(ident.PublicKey)
+	if err != nil {
+		return nil, fmt.Errorf("decode public key hex: %w", err)
+	}
+
+	if len(pubKeyBytes) != ed25519.PublicKeySize {
+		return nil, fmt.Errorf("invalid public key size: %d", len(pubKeyBytes))
+	}
+
+	return ed25519.PublicKey(pubKeyBytes), nil
+}
+
+// loadNodePrivateKey loads this node's Ed25519 private key for consensus signing.
+func loadNodePrivateKey(nodeName string) (ed25519.PrivateKey, error) {
+	keyPath := filepath.Join("identity", nodeName+"_private.key")
+	data, err := os.ReadFile(keyPath)
+	if err != nil {
+		return nil, fmt.Errorf("read private key %s: %w", keyPath, err)
+	}
+
+	// Private key is stored as hex-encoded seed (32 bytes) or full key (64 bytes)
+	keyHex := strings.TrimSpace(string(data))
+	keyBytes, err := hex.DecodeString(keyHex)
+	if err != nil {
+		return nil, fmt.Errorf("decode private key hex: %w", err)
+	}
+
+	switch len(keyBytes) {
+	case ed25519.SeedSize: // 32 bytes — seed
+		return ed25519.NewKeyFromSeed(keyBytes), nil
+	case ed25519.PrivateKeySize: // 64 bytes — full key
+		return ed25519.PrivateKey(keyBytes), nil
+	default:
+		return nil, fmt.Errorf("invalid private key size: %d", len(keyBytes))
+	}
+}
+
+// loadPeerPQPublicKey loads an ML-DSA-65 public key for a peer from identity directory.
+func loadPeerPQPublicKey(peerName string) (*pqmldsa.PublicKey, error) {
+	identityPath := filepath.Join("identity", peerName+"_pq_identity.json")
+	data, err := os.ReadFile(identityPath)
+	if err != nil {
+		return nil, fmt.Errorf("read PQ identity %s: %w", identityPath, err)
+	}
+
+	var ident struct {
+		PQPublicKey string `json:"pq_public_key"` // hex-encoded ML-DSA-65 public key
+	}
+	if err := json.Unmarshal(data, &ident); err != nil {
+		return nil, fmt.Errorf("parse PQ identity: %w", err)
+	}
+
+	pubBytes, err := hex.DecodeString(ident.PQPublicKey)
+	if err != nil {
+		return nil, fmt.Errorf("decode PQ public key hex: %w", err)
+	}
+
+	return pqmldsa.PublicKeyFromBytes(pubBytes, pqmldsa.MLDSA65)
+}
+
+// loadNodePQPrivateKey loads this node's ML-DSA-65 private key.
+func loadNodePQPrivateKey(nodeName string) (*pqmldsa.PrivateKey, error) {
+	keyPath := filepath.Join("identity", nodeName+"_pq_private.key")
+	data, err := os.ReadFile(keyPath)
+	if err != nil {
+		return nil, fmt.Errorf("read PQ private key %s: %w", keyPath, err)
+	}
+
+	keyHex := strings.TrimSpace(string(data))
+	keyBytes, err := hex.DecodeString(keyHex)
+	if err != nil {
+		return nil, fmt.Errorf("decode PQ private key hex: %w", err)
+	}
+
+	return pqmldsa.PrivateKeyFromBytes(pqmldsa.MLDSA65, keyBytes)
 }
 
 // initHSMProvider creates an HSM provider from config. Falls back to "file" provider.

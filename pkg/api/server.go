@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	consulapi "github.com/hashicorp/consul/api"
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
 
@@ -33,7 +32,7 @@ type Server struct {
 	wallets      *WalletStore
 	policy       *policy.PolicyEngine
 	webhooks     *WebhookStore
-	consulKV     infra.ConsulKV
+	kv           infra.KV
 	keyInfoStore keyinfo.Store
 	mpcClient    client.MPCClient // signs and publishes keygen/signing/reshare via JetStream
 	hsmProvider  hsm.Provider     // HSM provider for key management (optional)
@@ -44,7 +43,7 @@ type Config struct {
 	Port             int
 	IAMEndpoint      string // e.g. "https://id.lux.network"
 	NATSConn         *nats.Conn
-	ConsulKV         infra.ConsulKV // Consul KV for wallet metadata
+	KV               infra.KV       // KV store for wallet metadata (consensus, NATS, or Consul)
 	InitiatorKeyPath string         // path to event_initiator.key (Ed25519 private key)
 	HSMProvider      hsm.Provider   // HSM provider for key management (optional)
 }
@@ -52,8 +51,8 @@ type Config struct {
 // NewServer creates a new API server.
 func NewServer(cfg Config) *Server {
 	var kis keyinfo.Store
-	if cfg.ConsulKV != nil {
-		kis = keyinfo.NewStore(cfg.ConsulKV)
+	if cfg.KV != nil {
+		kis = keyinfo.NewStore(cfg.KV)
 	}
 
 	// Create MPC client for signed message publishing (graceful — don't crash if key is missing)
@@ -67,8 +66,8 @@ func NewServer(cfg Config) *Server {
 	}
 
 	var apiKeys *APIKeyStore
-	if cfg.ConsulKV != nil {
-		apiKeys = NewAPIKeyStore(cfg.ConsulKV)
+	if cfg.KV != nil {
+		apiKeys = NewAPIKeyStore(cfg.KV)
 	}
 
 	s := &Server{
@@ -78,7 +77,7 @@ func NewServer(cfg Config) *Server {
 		wallets:      NewWalletStore(cfg.NATSConn),
 		policy:       policy.NewPolicyEngine(),
 		webhooks:     NewWebhookStore(),
-		consulKV:     cfg.ConsulKV,
+		kv:           cfg.KV,
 		keyInfoStore: kis,
 		mpcClient:    mpcCli,
 		hsmProvider:  cfg.HSMProvider,
@@ -901,14 +900,14 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	status := "ok"
 	natsOK := s.natsConn != nil && s.natsConn.IsConnected()
 
-	consulOK := false
-	if s.consulKV != nil {
+	kvOK := false
+	if s.kv != nil {
 		// Quick check: list ready/ prefix (lightweight)
-		_, _, err := s.consulKV.List("ready/", nil)
-		consulOK = err == nil
+		_, err := s.kv.List("ready/")
+		kvOK = err == nil
 	}
 
-	if !natsOK || (s.consulKV != nil && !consulOK) {
+	if !natsOK || (s.kv != nil && !kvOK) {
 		status = "degraded"
 	}
 
@@ -929,7 +928,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status": status,
 		"nats":   natsOK,
-		"consul": consulOK,
+		"kv":     kvOK,
 		"hsm":    hsmStatus,
 		"time":   time.Now().UTC().Format(time.RFC3339),
 	})
@@ -964,13 +963,10 @@ func (s *Server) handleCreateWallet(w http.ResponseWriter, r *http.Request) {
 	// Track in wallet store before publishing
 	s.wallets.TrackWallet(walletID, req.Curve, user.ID, req.Metadata)
 
-	// Persist wallet owner to Consul so ownership survives pod restarts
-	if s.consulKV != nil {
-		if _, err := s.consulKV.Put(&consulapi.KVPair{
-			Key:   "wallet_owner/" + walletID,
-			Value: []byte(user.ID),
-		}, nil); err != nil {
-			logger.Warn("Failed to persist wallet owner to Consul", "walletID", walletID, "error", err)
+	// Persist wallet owner so ownership survives pod restarts
+	if s.kv != nil {
+		if err := s.kv.Put("wallet_owner/"+walletID, []byte(user.ID)); err != nil {
+			logger.Warn("Failed to persist wallet owner", "walletID", walletID, "error", err)
 		}
 	}
 
@@ -1017,11 +1013,11 @@ func (s *Server) handleListWallets(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// 2. Enumerate Consul keyinfo for wallets completed across all pods (filter by owner)
-	if s.consulKV != nil {
-		pairs, _, err := s.consulKV.List("threshold_keyinfo/", nil)
+	// 2. Enumerate keyinfo for wallets completed across all pods (filter by owner)
+	if s.kv != nil {
+		pairs, err := s.kv.List("threshold_keyinfo/")
 		if err != nil {
-			logger.Warn("Failed to list wallets from Consul", "error", err)
+			logger.Warn("Failed to list wallets from KV", "error", err)
 		} else {
 			for _, pair := range pairs {
 				walletID := strings.TrimPrefix(pair.Key, "threshold_keyinfo/")
@@ -1030,8 +1026,8 @@ func (s *Server) handleListWallets(w http.ResponseWriter, r *http.Request) {
 				}
 
 				// Check ownership via wallet_owner/ prefix
-				ownerPair, _, oErr := s.consulKV.Get("wallet_owner/"+walletID, nil)
-				if oErr != nil || ownerPair == nil || string(ownerPair.Value) != user.ID {
+				ownerData, oErr := s.kv.Get("wallet_owner/" + walletID)
+				if oErr != nil || ownerData == nil || string(ownerData) != user.ID {
 					continue
 				}
 				seen[walletID] = true
@@ -1090,11 +1086,11 @@ func (s *Server) handleGetWallet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fall back to Consul keyinfo (wallet created on another pod or before restart)
+	// Fall back to KV keyinfo (wallet created on another pod or before restart)
 	// Verify ownership via wallet_owner/ prefix
-	if s.consulKV != nil {
-		ownerPair, _, err := s.consulKV.Get("wallet_owner/"+walletID, nil)
-		if err != nil || ownerPair == nil || string(ownerPair.Value) != user.ID {
+	if s.kv != nil {
+		ownerData, err := s.kv.Get("wallet_owner/" + walletID)
+		if err != nil || ownerData == nil || string(ownerData) != user.ID {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "wallet not found"})
 			return
 		}
@@ -1144,9 +1140,9 @@ func (s *Server) handleSign(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusForbidden, map[string]string{"error": "access denied"})
 			return
 		}
-	} else if s.consulKV != nil {
-		ownerPair, _, err := s.consulKV.Get("wallet_owner/"+req.WalletID, nil)
-		if err != nil || ownerPair == nil || string(ownerPair.Value) != user.ID {
+	} else if s.kv != nil {
+		ownerData, err := s.kv.Get("wallet_owner/" + req.WalletID)
+		if err != nil || ownerData == nil || string(ownerData) != user.ID {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "wallet not found"})
 			return
 		}
