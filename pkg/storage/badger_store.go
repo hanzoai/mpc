@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dgraph-io/badger/v4"
+	"github.com/luxfi/zapdb/v4"
 )
 
 // BadgerStore provides a BadgerDB-based key-value store with backup capabilities.

@@ -3,7 +3,7 @@ package kvstore
 import (
 	"fmt"
 
-	"github.com/dgraph-io/badger/v4"
+	"github.com/luxfi/zapdb/v4"
 
 	"github.com/hanzoai/mpc/pkg/logger"
 )

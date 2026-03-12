@@ -15,7 +15,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/dgraph-io/badger/v4"
+	"github.com/luxfi/zapdb/v4"
 	"github.com/rs/zerolog/log"
 
 	"github.com/hanzoai/mpc/pkg/encryption"

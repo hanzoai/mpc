@@ -121,8 +121,6 @@ github.com/decred/dcrd/dcrec/edwards/v2 v2.0.4 h1:xmmdtnGxF/Od2doiP56zBv5a3LgJ3P
 github.com/decred/dcrd/dcrec/edwards/v2 v2.0.4/go.mod h1:07Ke2V+uJkG72M1Eiek8CF6NUB3XPlZ38cIit57R0UU=
 github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 h1:NMZiJj8QnKe1LgsbDayM4UoHwbvwDRwnI3hwNaAHRnc=
 github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0/go.mod h1:ZXNYxsqcloTdSy/rNShjYzMhyjf0LaoftYK0p+A3h40=
-github.com/dgraph-io/badger/v4 v4.9.0 h1:tpqWb0NewSrCYqTvywbcXOhQdWcqephkVkbBmaaqHzc=
-github.com/dgraph-io/badger/v4 v4.9.0/go.mod h1:5/MEx97uzdPUHR4KtkNt8asfI2T4JiEiQlV7kWUo8c0=
 github.com/dgraph-io/ristretto/v2 v2.4.0 h1:I/w09yLjhdcVD2QV192UJcq8dPBaAJb9pOuMyNy0XlU=
 github.com/dgraph-io/ristretto/v2 v2.4.0/go.mod h1:0KsrXtXvnv0EqnzyowllbVJB8yBonswa2lTCK2gGo9E=
 github.com/dgryski/go-farm v0.0.0-20240924180020-3414d57e47da h1:aIftn67I1fkbMa512G+w+Pxci9hJPB8oMnkcP3iZF38=
@@ -275,6 +273,8 @@ github.com/luxfi/log v1.4.1 h1:rIfFRodb9jrD/w7KayaUk0Oc+37PaQQdKEEMJCjR8gw=
 github.com/luxfi/log v1.4.1/go.mod h1:64IE3xRMJcpkQwnPUfJw3pDj7wU0kRS7BZ9wM7R72jk=
 github.com/luxfi/threshold v1.5.5 h1:MgPMrHf7dryztiaOYaG+Z+Cqqfa79oyblp5EowDFJw4=
 github.com/luxfi/threshold v1.5.5/go.mod h1:JEnYrKvCRDwGUeuCsMJSO2FeokuZGVaOml1XD/L1Vgs=
+github.com/luxfi/zapdb/v4 v4.9.3 h1:KV1DrbZqtZsZvrWyPw5D8WHR0DxzqW2jHjqx6obxgoM=
+github.com/luxfi/zapdb/v4 v4.9.3/go.mod h1:BrpLaDeYy+smON4ASDPCFKWrQ58CXhy3WNEPGna7vuU=
 github.com/mattn/go-colorable v0.1.9/go.mod h1:u6P/XSegPjTcexA+o6vUJrdnUu04hMope9wVRipJSqc=
 github.com/mattn/go-colorable v0.1.12/go.mod h1:u5H1YNBxpqRaxsYJYSkiCWKzEfiAb1Gb520KVy5xxl4=
 github.com/mattn/go-colorable v0.1.13/go.mod h1:7S9/ev0klgBDR4GtXTXX8a3vIGJpMovkB8vQcUbaXHg=

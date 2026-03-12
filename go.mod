@@ -19,7 +19,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.41.7
 	github.com/decred/dcrd/dcrec/edwards/v2 v2.0.4
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0
-	github.com/dgraph-io/badger/v4 v4.9.0
 	github.com/fxamacker/cbor/v2 v2.9.0
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/consul/api v1.33.2
@@ -27,6 +26,7 @@ require (
 	github.com/luxfi/fhe v1.7.6
 	github.com/luxfi/log v1.4.1
 	github.com/luxfi/threshold v1.5.5
+	github.com/luxfi/zapdb/v4 v4.9.3
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/nats-io/nats.go v1.48.0
 	github.com/rs/zerolog v1.34.0
