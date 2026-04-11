@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/luxfi/zapdb/v4"
+	"github.com/luxfi/zapdb"
 )
 
 // BadgerStore provides a BadgerDB-based key-value store with backup capabilities.
