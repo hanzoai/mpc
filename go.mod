@@ -27,7 +27,7 @@ require (
 	github.com/luxfi/fhe v1.7.6
 	github.com/luxfi/log v1.4.1
 	github.com/luxfi/threshold v1.5.5
-	github.com/luxfi/zapdb/v4 v4.9.3
+	github.com/luxfi/zapdb v1.0.0
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/nats-io/nats.go v1.48.0
 	github.com/rs/zerolog v1.34.0

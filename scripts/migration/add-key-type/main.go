@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/luxfi/zapdb/v4"
+	"github.com/luxfi/zapdb"
 
 	"github.com/hanzoai/mpc/pkg/kvstore"
 	"github.com/hanzoai/mpc/pkg/logger"

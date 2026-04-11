@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/luxfi/zapdb/v4"
-	"github.com/luxfi/zapdb/v4/options"
+	"github.com/luxfi/zapdb"
+	"github.com/luxfi/zapdb/options"
 	"github.com/hashicorp/consul/api"
 	"github.com/hanzoai/mpc/pkg/client"
 	"github.com/hanzoai/mpc/pkg/event"

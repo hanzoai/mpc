@@ -3,8 +3,8 @@ package kvstore
 import (
 	"errors"
 
-	"github.com/luxfi/zapdb/v4"
-	"github.com/luxfi/zapdb/v4/options"
+	"github.com/luxfi/zapdb"
+	"github.com/luxfi/zapdb/options"
 
 	"github.com/hanzoai/mpc/pkg/logger"
 )
