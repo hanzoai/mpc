@@ -9,10 +9,10 @@ import (
 	"github.com/hashicorp/consul/api"
 	"github.com/urfave/cli/v3"
 
-	"github.com/hanzoai/mpc/pkg/common/pathutil"
-	"github.com/hanzoai/mpc/pkg/config"
-	"github.com/hanzoai/mpc/pkg/infra"
-	"github.com/hanzoai/mpc/pkg/logger"
+	"github.com/luxfi/mpc/pkg/common/pathutil"
+	"github.com/luxfi/mpc/pkg/config"
+	"github.com/luxfi/mpc/pkg/infra"
+	"github.com/luxfi/mpc/pkg/logger"
 )
 
 func registerPeers(ctx context.Context, c *cli.Command) error {
