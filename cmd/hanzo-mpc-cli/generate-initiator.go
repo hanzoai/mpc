@@ -16,7 +16,7 @@ import (
 	"filippo.io/age"
 	"github.com/urfave/cli/v3"
 
-	"github.com/hanzoai/mpc/pkg/common/pathutil"
+	"github.com/luxfi/mpc/pkg/common/pathutil"
 )
 
 // Identity struct to store node metadata

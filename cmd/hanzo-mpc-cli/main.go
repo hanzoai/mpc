@@ -11,12 +11,12 @@ import (
 
 const (
 	// Version information
-	VERSION = "0.2.1"
+	VERSION = "2.0.0"
 )
 
 func main() {
 	cmd := &cli.Command{
-		Name:  "lux-mpc-cli",
+		Name:  "hanzo-mpc-cli",
 		Usage: "Lux MPC node management tools",
 		Commands: []*cli.Command{
 			{
@@ -125,36 +125,16 @@ func main() {
 				},
 				Action: generateInitiatorIdentity,
 			},
-			{
-				Name:  "recover",
-				Usage: "Recover database from encrypted backup files",
-				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:     "backup-dir",
-						Aliases:  []string{"b"},
-						Usage:    "Directory containing encrypted backup files",
-						Required: true,
-					},
-					&cli.StringFlag{
-						Name:     "recovery-path",
-						Aliases:  []string{"r"},
-						Usage:    "Target path for database recovery",
-						Required: true,
-					},
-					&cli.BoolFlag{
-						Name:    "force",
-						Aliases: []string{"f"},
-						Value:   false,
-						Usage:   "Force overwrite if recovery path already exists",
-					},
-				},
-				Action: recoverDatabase,
-			},
+			// `recover` subcommand removed: recovery is now performed via the
+			// canonical luxfi/mpc/pkg/backup tooling. Run:
+			//     mpcd-cli recover --backup-dir ... --recovery-path ...
+			// from the github.com/luxfi/mpc/cmd/mpc binary, or invoke
+			// pkg/backup directly from a service.
 			{
 				Name:  "version",
 				Usage: "Display detailed version information",
 				Action: func(ctx context.Context, c *cli.Command) error {
-					fmt.Printf("lux-mpc-cli version %s\n", VERSION)
+					fmt.Printf("hanzo-mpc-cli version %s\n", VERSION)
 					return nil
 				},
 			},
