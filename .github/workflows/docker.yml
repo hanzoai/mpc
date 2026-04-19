@@ -13,14 +13,59 @@ env:
   IMAGE_NAME: hanzoai/mpc
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout hanzoai/mpc
+        uses: actions/checkout@v4
+        with:
+          path: hanzo/mpc
+
+      # The hanzo/mpc go.mod uses a relative `replace github.com/luxfi/mpc
+      # => ../../lux/mpc` directive for local development. CI checks out the
+      # canonical luxfi/mpc repo at the matching relative path.
+      - name: Checkout luxfi/mpc (canonical)
+        uses: actions/checkout@v4
+        with:
+          repository: luxfi/mpc
+          path: lux/mpc
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+
+      - name: Build hanzo-mpc + hanzo-mpc-cli
+        working-directory: hanzo/mpc
+        run: |
+          CGO_ENABLED=0 go build -v ./cmd/hanzo-mpc
+          CGO_ENABLED=0 go build -v ./cmd/hanzo-mpc-cli
+
+      - name: Verify --help shows Hanzo defaults
+        working-directory: hanzo/mpc
+        run: ./hanzo-mpc --help 2>&1 | grep -q "Hanzo MPC" || (echo "branding regression" && exit 1)
+
+      - name: Run tests
+        working-directory: hanzo/mpc
+        run: go test ./...
+
   build:
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout hanzoai/mpc
+        uses: actions/checkout@v4
+        with:
+          path: hanzo/mpc
+
+      - name: Checkout luxfi/mpc (canonical)
+        uses: actions/checkout@v4
+        with:
+          repository: luxfi/mpc
+          path: lux/mpc
 
       - uses: docker/setup-qemu-action@v3
 
@@ -44,9 +89,12 @@ jobs:
             type=sha
             type=raw,value=latest,enable={{is_default_branch}}
 
+      # Build context is the parent so the Dockerfile can COPY both
+      # hanzo/mpc and lux/mpc (matching the relative `replace` in go.mod).
       - uses: docker/build-push-action@v6
         with:
           context: .
+          file: hanzo/mpc/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
