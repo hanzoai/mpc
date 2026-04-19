@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/hanzoai/mpc/pkg/threshold"
+	"github.com/luxfi/mpc/pkg/threshold"
 )
 
 func main() {
