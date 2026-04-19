@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/viper"
 
-	"github.com/hanzoai/mpc/pkg/kms"
+	"github.com/luxfi/mpc/pkg/kms"
 )
 
 func main() {

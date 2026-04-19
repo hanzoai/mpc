@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hanzoai/mpc/pkg/client"
-	"github.com/hanzoai/mpc/pkg/event"
-	"github.com/hanzoai/mpc/pkg/types"
+	"github.com/luxfi/mpc/pkg/client"
+	"github.com/luxfi/mpc/pkg/event"
+	"github.com/luxfi/mpc/pkg/types"
 	"github.com/nats-io/nats.go"
 )
 

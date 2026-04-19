@@ -11,7 +11,7 @@ import (
 	"log"
 	"math/big"
 
-	"github.com/hanzoai/mpc/pkg/threshold"
+	"github.com/luxfi/mpc/pkg/threshold"
 	"golang.org/x/crypto/sha3"
 )
 

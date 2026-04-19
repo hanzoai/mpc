@@ -7,11 +7,11 @@ import (
 	"syscall"
 
 	"github.com/google/uuid"
-	"github.com/hanzoai/mpc/pkg/client"
-	"github.com/hanzoai/mpc/pkg/config"
-	"github.com/hanzoai/mpc/pkg/event"
-	"github.com/hanzoai/mpc/pkg/logger"
-	"github.com/hanzoai/mpc/pkg/types"
+	"github.com/luxfi/mpc/pkg/client"
+	"github.com/luxfi/mpc/pkg/config"
+	"github.com/luxfi/mpc/pkg/event"
+	"github.com/luxfi/mpc/pkg/logger"
+	"github.com/luxfi/mpc/pkg/types"
 	"github.com/nats-io/nats.go"
 	"github.com/spf13/viper"
 )
