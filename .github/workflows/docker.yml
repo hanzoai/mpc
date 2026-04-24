@@ -1,103 +1,15 @@
-name: Docker Build & Push
-
+name: Docker
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, dev, test]
     tags: ['v*']
-  pull_request:
-    branches: [main]
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: hanzoai/mpc
-
+permissions:
+  contents: read
+  packages: write
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout hanzoai/mpc
-        uses: actions/checkout@v4
-        with:
-          path: hanzo/mpc
-
-      # The hanzo/mpc go.mod uses a relative `replace github.com/luxfi/mpc
-      # => ../../lux/mpc` directive for local development. CI checks out the
-      # canonical luxfi/mpc repo at the matching relative path.
-      - name: Checkout luxfi/mpc (canonical)
-        uses: actions/checkout@v4
-        with:
-          repository: luxfi/mpc
-          path: lux/mpc
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.26"
-
-      - name: Build hanzo-mpc + hanzo-mpc-cli
-        working-directory: hanzo/mpc
-        run: |
-          CGO_ENABLED=0 go build -v ./cmd/hanzo-mpc
-          CGO_ENABLED=0 go build -v ./cmd/hanzo-mpc-cli
-
-      - name: Verify --help shows Hanzo defaults
-        working-directory: hanzo/mpc
-        run: ./hanzo-mpc --help 2>&1 | grep -q "Hanzo MPC" || (echo "branding regression" && exit 1)
-
-      - name: Run tests
-        working-directory: hanzo/mpc
-        run: go test ./...
-
-  build:
-    needs: test
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout hanzoai/mpc
-        uses: actions/checkout@v4
-        with:
-          path: hanzo/mpc
-
-      - name: Checkout luxfi/mpc (canonical)
-        uses: actions/checkout@v4
-        with:
-          repository: luxfi/mpc
-          path: lux/mpc
-
-      - uses: docker/setup-qemu-action@v3
-
-      - uses: docker/setup-buildx-action@v3
-
-      - uses: docker/login-action@v3
-        if: github.event_name != 'pull_request'
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: docker/metadata-action@v5
-        id: meta
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      # Build context is the parent so the Dockerfile can COPY both
-      # hanzo/mpc and lux/mpc (matching the relative `replace` in go.mod).
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: hanzo/mpc/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+  docker:
+    uses: hanzoai/.github/.github/workflows/docker-build.yml@main
+    with:
+      image: ghcr.io/hanzoai/mpc
+    secrets: inherit
