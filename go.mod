@@ -17,7 +17,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/hanzoai/base v0.39.1
 	github.com/hashicorp/consul/api v1.33.7
-	github.com/luxfi/hsm v1.1.1
+	github.com/luxfi/hsm v1.1.2
 	github.com/luxfi/mpc v0.0.0-00010101000000-000000000000
 	github.com/luxfi/zapdb v1.9.0
 	github.com/mr-tron/base58 v1.2.0
