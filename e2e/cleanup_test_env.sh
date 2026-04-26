@@ -10,8 +10,8 @@ echo "=== MPC Test Environment Cleanup ==="
 kill_lux_mpc_processes() {
     echo "Checking for existing MPC processes..."
     
-    # Find all hanzo-mpc processes
-    PIDS=$(pgrep -f "hanzo-mpc" || true)
+    # Find all mpcd processes
+    PIDS=$(pgrep -f "mpcd" || true)
     
     if [ -z "$PIDS" ]; then
         echo "No existing MPC processes found"
