@@ -61,11 +61,11 @@ const (
 	DefaultBackupPeriodSeconds = 300 // (5 minutes)
 
 	// Hanzo defaults — operator can override via env vars / flags.
-	defaultListen          = ":9651"
+	defaultListen          = ":9999"
 	defaultAPIInternal     = ":9800"
 	defaultDashboardListen = ":8081"
-	defaultDataDir         = "/data/hanzo-mpc"
-	defaultBackupBucket    = "hanzo-mpc-backups"
+	defaultDataDir         = "/data/mpcd"
+	defaultBackupBucket    = "mpcd-backups"
 )
 
 func main() {
@@ -81,7 +81,7 @@ func main() {
 		os.Getenv("BRAND_NAME"), Version)
 
 	app := &cli.Command{
-		Name:    "hanzo-mpc",
+		Name:    "mpcd",
 		Usage:   "Hanzo MPC node — threshold signatures via luxfi/mpc consensus",
 		Version: Version,
 		Commands: []*cli.Command{
@@ -96,7 +96,7 @@ func main() {
 					&cli.StringFlag{
 						Name:  "listen",
 						Usage: "P2P listen address",
-						Value: ":9651",
+						Value: ":9999",
 					},
 					&cli.StringFlag{
 						Name:  "api",
@@ -179,7 +179,7 @@ func main() {
 				Name:  "version",
 				Usage: "Display detailed version information",
 				Action: func(ctx context.Context, c *cli.Command) error {
-					fmt.Printf("hanzo-mpc version %s (luxfi/mpc canonical)\n", Version)
+					fmt.Printf("mpcd version %s (luxfi/mpc canonical)\n", Version)
 					return nil
 				},
 			},

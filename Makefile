@@ -1,4 +1,4 @@
-.PHONY: all build clean hanzo-mpc hanzo-mpc-cli test test-verbose test-coverage e2e-test e2e-clean cleanup-test-env
+.PHONY: all build clean mpcd mpc test test-verbose test-coverage e2e-test e2e-clean cleanup-test-env
 
 BIN_DIR := bin
 
@@ -6,19 +6,19 @@ BIN_DIR := bin
 all: build
 
 # Build all binaries
-build: hanzo-mpc hanzo-mpc-cli hanzo-mpc-bridge
+build: mpcd mpc mpc-bridge
 
-# Install hanzo-mpc (builds and places it in $GOBIN or $GOPATH/bin)
-hanzo-mpc:
-	GOWORK=off go build -o hanzo-mpc ./cmd/hanzo-mpc
+# Install mpcd (builds and places it in $GOBIN or $GOPATH/bin)
+mpcd:
+	GOWORK=off go build -o mpcd ./cmd/mpcd
 
-# Install hanzo-mpc-cli
-hanzo-mpc-cli:
-	GOWORK=off go build -o hanzo-mpc-cli ./cmd/hanzo-mpc-cli
+# Install mpc
+mpc:
+	GOWORK=off go build -o mpc ./cmd/mpc
 
-# Install hanzo-mpc-bridge (bridge compatibility)
-hanzo-mpc-bridge:
-	GOWORK=off go build -o hanzo-mpc-bridge ./cmd/hanzo-mpc-bridge 2>/dev/null || true
+# Install mpc-bridge (bridge compatibility)
+mpc-bridge:
+	GOWORK=off go build -o mpc-bridge ./cmd/mpc-bridge 2>/dev/null || true
 
 # Run all tests
 test:
@@ -60,7 +60,7 @@ test-all: test e2e-test
 clean:
 	rm -rf $(BIN_DIR)
 	rm -f coverage.out coverage.html
-	rm -f hanzo-mpc hanzo-mpc-cli hanzo-mpc-bridge
+	rm -f mpcd mpc mpc-bridge
 
 # Full clean (including E2E artifacts)
 clean-all: clean e2e-clean
@@ -77,7 +77,7 @@ run-local: build
 	@echo "  - Consul: http://localhost:8500"
 	@echo ""
 	@echo "To start MPC nodes, run:"
-	@echo "  ./hanzo-mpc --node-id node0 --config config.yaml"
+	@echo "  ./mpcd --node-id node0 --config config.yaml"
 
 # Stop local environment
 stop-local:
@@ -91,7 +91,7 @@ logs:
 # Run a single MPC node (example)
 run-node0: build
 	@echo "Starting MPC node0..."
-	./hanzo-mpc --node-id node0 --config config.yaml.template
+	./mpcd --node-id node0 --config config.yaml.template
 
 # Quick start - build and run everything
 start: build run-local

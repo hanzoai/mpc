@@ -18,7 +18,7 @@ Before running the tests, ensure you have:
 
 - **Docker** installed and running
 - **Go** 1.23+ installed
-- **hanzo-mpc** and **hanzo-mpc-cli** binaries built (run `make` in the root directory)
+- **mpcd** and **mpc** binaries built (run `make` in the root directory)
 
 ## Running Tests
 

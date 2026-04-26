@@ -216,9 +216,9 @@ func (s *E2ETestSuite) RegisterPeers(t *testing.T) {
 	t.Log("Consul is healthy")
 
 	// Use mpc register-peers command instead of manual registration
-	t.Log("Running hanzo-mpc-cli register-peers...")
+	t.Log("Running mpc register-peers...")
 	nodeDir := filepath.Join(s.testDir, "test_node0")
-	cmd := exec.Command("hanzo-mpc-cli", "register-peers")
+	cmd := exec.Command("mpc", "register-peers")
 	cmd.Dir = nodeDir
 	cmd.Env = append(os.Environ(), "LUX_MPC_CONFIG=config.yaml")
 
@@ -274,7 +274,7 @@ func (s *E2ETestSuite) StartNodes(t *testing.T) {
 		nodeDir := filepath.Join(s.testDir, nodeName)
 
 		// Start node process
-		cmd := exec.Command("hanzo-mpc", "start", "-n", nodeName)
+		cmd := exec.Command("mpcd", "start", "-n", nodeName)
 		cmd.Dir = nodeDir
 		cmd.Env = append(os.Environ(), "LUX_MPC_CONFIG=config.yaml")
 
@@ -591,7 +591,7 @@ func (s *E2ETestSuite) KillAllMPCProcesses(t *testing.T) {
 	t.Log("Checking for existing MPC processes...")
 
 	// Find all mpc processes
-	cmd := exec.Command("pgrep", "-f", "hanzo-mpc")
+	cmd := exec.Command("pgrep", "-f", "mpcd")
 	output, err := cmd.Output()
 	if err != nil {
 		// pgrep returns exit code 1 if no processes found, which is fine
