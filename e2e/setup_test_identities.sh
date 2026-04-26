@@ -68,8 +68,8 @@ for i in $(seq 0 $((NUM_NODES-1))); do
     echo "📝 Generating identity for test_node$i..."
     cd "$BASE_DIR/test_node$i"
     
-    # Generate identity using hanzo-mpc-cli
-    hanzo-mpc-cli generate-identity --node "test_node$i"
+    # Generate identity using mpc
+    mpc generate-identity --node "test_node$i"
     
     cd - > /dev/null
 done
@@ -88,7 +88,7 @@ done
 # Generate test event initiator
 echo "🔐 Generating test event initiator..."
 cd "$BASE_DIR"
-hanzo-mpc-cli generate-initiator --node-name test_event_initiator --output-dir . --overwrite
+mpc generate-initiator --node-name test_event_initiator --output-dir . --overwrite
 
 # Extract the public key from the generated identity
 if [ -f "test_event_initiator.identity.json" ]; then

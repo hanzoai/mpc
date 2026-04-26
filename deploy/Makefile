@@ -141,11 +141,11 @@ status:
 
 keygen:
 	@echo "Generating MPC keys..."
-	docker exec lux-mpc-0 hanzo-mpc-cli keygen --wallet-id $(WALLET_ID) --threshold 2
+	docker exec lux-mpc-0 mpc keygen --wallet-id $(WALLET_ID) --threshold 2
 
 sign:
 	@echo "Initiating signing..."
-	docker exec lux-mpc-0 hanzo-mpc-cli sign --wallet-id $(WALLET_ID) --message $(MESSAGE)
+	docker exec lux-mpc-0 mpc sign --wallet-id $(WALLET_ID) --message $(MESSAGE)
 
 # ============================================================
 # BACKUP OPERATIONS
@@ -155,7 +155,7 @@ backup:
 	@echo "Triggering manual backup..."
 	@for node in 0 1 2; do \
 		echo "Backing up MPC node $$node..."; \
-		docker exec lux-mpc-$$node hanzo-mpc backup --s3; \
+		docker exec lux-mpc-$$node mpcd backup --s3; \
 	done
 	@echo "Backing up KMS..."
 	docker exec lux-kms npm run backup
@@ -165,7 +165,7 @@ backup-local:
 	@echo "Creating local backup..."
 	@mkdir -p data/backups/$$(date +%Y%m%d)
 	@for node in 0 1 2; do \
-		docker exec lux-mpc-$$node hanzo-mpc backup --output /data/backup.bak; \
+		docker exec lux-mpc-$$node mpcd backup --output /data/backup.bak; \
 		docker cp lux-mpc-$$node:/data/backup.bak data/backups/$$(date +%Y%m%d)/mpc-node-$$node.bak; \
 	done
 	@docker exec lux-kms npm run backup:local
@@ -178,7 +178,7 @@ restore:
 	for node in 0 1 2; do \
 		echo "Restoring MPC node $$node..."; \
 		docker cp data/backups/$$date/mpc-node-$$node.bak lux-mpc-$$node:/data/restore.bak; \
-		docker exec lux-mpc-$$node hanzo-mpc restore --input /data/restore.bak; \
+		docker exec lux-mpc-$$node mpcd restore --input /data/restore.bak; \
 	done
 	@echo "Restoring KMS..."
 	@docker cp data/backups/$$date/kms.tar.gz lux-kms:/app/data/restore.tar.gz
@@ -243,14 +243,14 @@ push-images:
 
 test-keygen:
 	@echo "Testing key generation..."
-	docker exec lux-mpc-0 hanzo-mpc-cli keygen \
+	docker exec lux-mpc-0 mpc keygen \
 		--wallet-id test-wallet-$$(date +%s) \
 		--threshold 2 \
 		--verbose
 
 test-signing:
 	@echo "Testing signing..."
-	docker exec lux-mpc-0 hanzo-mpc-cli sign \
+	docker exec lux-mpc-0 mpc sign \
 		--wallet-id $(WALLET_ID) \
 		--message "test message $$(date +%s)" \
 		--verbose
