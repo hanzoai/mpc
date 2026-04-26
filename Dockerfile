@@ -29,12 +29,12 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
-    go build -ldflags="-s -w" -o hanzo-mpc ./cmd/hanzo-mpc
+    go build -ldflags="-s -w" -o mpcd ./cmd/mpcd
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
-    go build -ldflags="-s -w" -o hanzo-mpc-cli ./cmd/hanzo-mpc-cli
+    go build -ldflags="-s -w" -o mpc ./cmd/mpc
 
 # Runtime stage
 FROM alpine:latest
@@ -45,26 +45,26 @@ RUN apk add --no-cache ca-certificates curl bash
 
 WORKDIR /app
 
-COPY --from=builder /build/hanzo/mpc/hanzo-mpc     /usr/local/bin/
-COPY --from=builder /build/hanzo/mpc/hanzo-mpc-cli /usr/local/bin/
+COPY --from=builder /build/hanzo/mpc/mpcd     /usr/local/bin/
+COPY --from=builder /build/hanzo/mpc/mpc /usr/local/bin/
 
 # Config templates from the hanzo/mpc checkout.
 COPY hanzo/mpc/config.yaml.template      /app/
 COPY hanzo/mpc/config.prod.yaml.template /app/
 
 # Hanzo data + log directories. The binary defaults MPC_DATA_DIR to
-# /data/hanzo-mpc when unset (see cmd/hanzo-mpc/main.go).
-RUN mkdir -p /data/hanzo-mpc/db /data/hanzo-mpc/backups /app/logs /app/identity
+# /data/mpcd when unset (see cmd/mpcd/main.go).
+RUN mkdir -p /data/mpcd/db /data/mpcd/backups /app/logs /app/identity
 
-ENV MPC_DATA_DIR=/data/hanzo-mpc \
-    MPC_DB_PATH=/data/hanzo-mpc/db \
-    MPC_BACKUP_DIR=/data/hanzo-mpc/backups \
+ENV MPC_DATA_DIR=/data/mpcd \
+    MPC_DB_PATH=/data/mpcd/db \
+    MPC_BACKUP_DIR=/data/mpcd/backups \
     BRAND_NAME=Hanzo
 
-# 9651=MPC P2P (consensus), 9800=internal API, 8081=dashboard
-EXPOSE 9651 9800 8081
+# 9999=MPC P2P (canonical ZAP), 9800=internal API, 8081=dashboard
+EXPOSE 9999 9800 8081
 
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:8081/health || exit 1
 
-CMD ["hanzo-mpc", "start", "--config", "/app/config.yaml"]
+CMD ["mpcd", "start", "--config", "/app/config.yaml"]

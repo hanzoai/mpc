@@ -25,8 +25,8 @@ KMS (Control Plane): Policy, Approvals, Audit, Key Registry, Unified Signing API
 
 ```
 mpc/
-  cmd/hanzo-mpc/       Main node binary
-  cmd/hanzo-mpc-cli/   CLI tools
+  cmd/mpcd/       Main node binary
+  cmd/mpc/   CLI tools
   pkg/
     mpc/               TSS implementation (CGGMP21, FROST, LSS)
     kvstore/           BadgerDB storage (AES-256 encrypted)
@@ -46,11 +46,11 @@ mpc/
 
 ```bash
 make build
-hanzo-mpc-cli generate-peers -n 3
-hanzo-mpc-cli register-peers
-hanzo-mpc-cli generate-initiator
-hanzo-mpc-cli generate-identity --node node0
-hanzo-mpc start -n node0
+mpc generate-peers -n 3
+mpc register-peers
+mpc generate-initiator
+mpc generate-identity --node node0
+mpcd start -n node0
 ```
 
 ## Config
@@ -119,7 +119,7 @@ abstract `infra.KV` interface. Three backends are available:
 
 | Service | Port | Purpose |
 |---------|------|---------|
-| hanzo-mpc-{0,1,2} | 6000-6002 | MPC nodes (consensus validators) |
+| mpcd-{0,1,2} | 6000-6002 | MPC nodes (consensus validators) |
 | hanzo-kms | 8080 | Key management |
 | nats | 4222 | Message broker + consensus transport |
 | minio | 9000 | S3 backup storage |
@@ -159,32 +159,32 @@ make e2e-test        # End-to-end
 - Consensus proposals: `mpc.consensus.<chainID>.proposals`
 
 ### E2E Tests
-- Tests use `hanzo-mpc` from PATH -- run `go install ./cmd/hanzo-mpc && go install ./cmd/hanzo-mpc-cli` after code changes
+- Tests use `mpcd` from PATH -- run `go install ./cmd/mpcd && go install ./cmd/mpc` after code changes
 
 ## Production Deployment (Feb 2026)
 
 ### Cluster: hanzo-k8s (do-sfo3)
 - **Namespace**: `hanzo`
-- **StatefulSet**: `hanzo-mpc` (3 replicas)
+- **StatefulSet**: `mpcd` (3 replicas)
 - **Image**: `ghcr.io/hanzoai/mpc:v0.4.3`
 - **API**: `mpc.hanzo.ai` (port 8080, IAM auth via hanzo.id)
-- **Node peers**: hanzo-mpc-{0,1,2}
+- **Node peers**: mpcd-{0,1,2}
 - **Threshold**: 2-of-3
 
 ### Infrastructure
 - **NATS**: `nats://nats.hanzo.svc.cluster.local:4222` (JetStream + consensus transport)
 - **KV Backend**: `consensus` (M-Chain) — Consul deprecated, kept for parity testing
-- **Config**: ConfigMap `hanzo-mpc-config` at `/app/config.yaml`
-- **Identity**: Secret `hanzo-mpc-identity` at `/app/identity/` + `/app/event_initiator.key`
+- **Config**: ConfigMap `mpcd-config` at `/app/config.yaml`
+- **Identity**: Secret `mpcd-identity` at `/app/identity/` + `/app/event_initiator.key`
 
 ### Key Architecture
 - **Event initiator key** (Ed25519): Signs all keygen/signing/reshare messages
-  - Private key: K8s secret `hanzo-mpc-identity` key `event_initiator.key` (hex seed)
+  - Private key: K8s secret `mpcd-identity` key `event_initiator.key` (hex seed)
   - Public key: ConfigMap `event_initiator_pubkey`
   - Mounted at `/app/event_initiator.key` via subPath volumeMount
 - **Node identity keys**: Per-node Ed25519 keys in identity secret
-  - `hanzo-mpc-{N}_private.key` + `hanzo-mpc-{N}_identity.json`
-- **MPC key shards**: BadgerDB at `/data/mpc/db/hanzo-mpc-{N}/` (PVC)
+  - `mpcd-{N}_private.key` + `mpcd-{N}_identity.json`
+- **MPC key shards**: BadgerDB at `/data/mpc/db/mpcd-{N}/` (PVC)
 
 ### Message Flow (verified working Feb 24 2026)
 ```
@@ -205,7 +205,7 @@ API → MPCClient.CreateWallet(walletID)
 - Fetch key shards + dual consensus keys at runtime (never plaintext on disk)
 - HSM abstraction (PKCS#11) for AWS CloudHSM / Azure HSM
 - Node identity keys (Ed25519 + ML-DSA-65) also in KMS with encrypted backups
-- Generate `{node}_pq_identity.json` and `{node}_pq_private.key` via `hanzo-mpc-cli generate-identity`
+- Generate `{node}_pq_identity.json` and `{node}_pq_private.key` via `mpc generate-identity`
 
 ## Security Audit Findings (Jan 2026)
 
