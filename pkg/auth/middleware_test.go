@@ -56,6 +56,39 @@ func TestRequireIdentity(t *testing.T) {
 			wantOrg:  "lux",
 			wantNext: true,
 		},
+		{
+			name:    "X-Org-Id whitespace-only with user set, require true → 401",
+			require: true,
+			headers: map[string]string{
+				HeaderOrgID:  "   ",
+				HeaderUserID: "user-7",
+			},
+			wantCode: http.StatusUnauthorized,
+			wantNext: false,
+		},
+		{
+			name:    "X-Org-Id whitespace-only alone, require true → 401",
+			require: true,
+			headers: map[string]string{
+				HeaderOrgID: " \t\n ",
+			},
+			wantCode: http.StatusUnauthorized,
+			wantNext: false,
+		},
+		{
+			name:    "X-Org-Id padded with whitespace gets trimmed",
+			require: true,
+			headers: map[string]string{
+				HeaderOrgID:     "  hanzo  ",
+				HeaderUserID:    "u-1",
+				HeaderUserEmail: " z@hanzo.ai ",
+			},
+			wantCode:  http.StatusOK,
+			wantOrg:   "hanzo",
+			wantUser:  "u-1",
+			wantEmail: "z@hanzo.ai",
+			wantNext:  true,
+		},
 	}
 
 	for _, tc := range cases {
