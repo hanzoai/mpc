@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,7 +16,7 @@ import (
 )
 
 // TestEmbedLifecycle exercises the public Embed contract end-to-end:
-// start, hit /healthz via httptest, hit /v1/mpc/health under the
+// start, hit /healthz via httptest, hit /v1/mpc/info under the
 // identity middleware, Stop, and confirm a second Embed succeeds after
 // the singleton releases.
 func TestEmbedLifecycle(t *testing.T) {
@@ -48,7 +49,8 @@ func TestEmbedLifecycle(t *testing.T) {
 		t.Fatalf("second Embed: want ErrAlreadyEmbedded got %v", err)
 	}
 
-	// Probe /healthz via the canonical BuildHTTP wiring.
+	// Probe /healthz via the canonical BuildHTTP wiring. Body must be
+	// {"status":"ok"} — no node_id, no org, no service field.
 	mux := BuildHTTP(srv, srv.NodeID(), false)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
@@ -59,15 +61,32 @@ func TestEmbedLifecycle(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("/healthz body: %v", err)
 	}
-	if body["service"] != "mpc" {
-		t.Fatalf("/healthz service: want %q got %q", "mpc", body["service"])
+	if body["status"] != "ok" {
+		t.Fatalf("/healthz status: want %q got %q", "ok", body["status"])
+	}
+	if _, leaks := body["node_id"]; leaks {
+		t.Fatalf("/healthz must NOT leak node_id; body=%q", rec.Body.String())
+	}
+	if _, leaks := body["service"]; leaks {
+		t.Fatalf("/healthz must NOT leak service; body=%q", rec.Body.String())
 	}
 
-	// /v1/mpc/health under identity middleware (require=false → empty ctx allowed).
+	// /v1/mpc/info under identity middleware (require=false → empty ctx allowed).
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/mpc/info", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("/v1/mpc/info (solo): want 200 got %d body=%q", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "mpcd-embed-test") {
+		t.Fatalf("/v1/mpc/info should report node_id behind auth; body=%q", rec.Body.String())
+	}
+
+	// Legacy /v1/mpc/health is gone — must 401 (require=false here, but
+	// the inner mux returns 404 because the route isn't registered).
 	rec = httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/mpc/health", nil))
-	if rec.Code != http.StatusOK {
-		t.Fatalf("/v1/mpc/health (solo): want 200 got %d body=%q", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("/v1/mpc/health (retired): want 404 got %d body=%q", rec.Code, rec.Body.String())
 	}
 
 	// Stop releases the singleton.
@@ -82,9 +101,9 @@ func TestEmbedLifecycle(t *testing.T) {
 	embedMu.Unlock()
 }
 
-// TestRequireIdentityCloud confirms BuildHTTP under MPCD_REQUIRE_IDENTITY
-// rejects requests missing X-Org-Id / X-User-Id, but lets the public
-// /healthz probe through unauthenticated.
+// TestRequireIdentityCloud confirms BuildHTTP under MPCD_REQUIRE_IDENTITY:
+//   - /healthz is public, identity-free, body never includes node_id
+//   - /v1/mpc/* (including /v1/mpc/info) requires identity headers
 func TestRequireIdentityCloud(t *testing.T) {
 	srv, err := Embed(context.Background(), EmbedConfig{
 		DataDir:  t.TempDir(),
@@ -103,37 +122,54 @@ func TestRequireIdentityCloud(t *testing.T) {
 
 	mux := BuildHTTP(srv, srv.NodeID(), true)
 
-	// /healthz public — must pass with no headers.
+	// /healthz public — must pass with no headers and never leak identity.
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("/healthz public: want 200 got %d", rec.Code)
 	}
-
-	// /v1/mpc/health is the public gateway probe — must pass without
-	// identity headers even when require=true. The auth-gated surface
-	// hides under HTTPHandler() (the inner JSON shim mux), which
-	// BuildHTTP wraps with identity for everything except the explicit
-	// public probes.
-	rec = httptest.NewRecorder()
-	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/mpc/health", nil))
-	if rec.Code != http.StatusOK {
-		t.Fatalf("/v1/mpc/health public probe: want 200 got %d", rec.Code)
+	if strings.Contains(rec.Body.String(), "mpcd-cloud-test") {
+		t.Fatalf("/healthz must NOT leak node_id even in cloud mode; body=%q", rec.Body.String())
 	}
 
-	// /v1/mpc/wallets is gated — no headers → 401. The route doesn't
-	// exist (HTTPHandler returns 404 for unknown paths) but the
-	// identity middleware runs first and rejects with 401.
+	// /v1/mpc/info is now identity-gated — no headers → 401.
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/mpc/info", nil))
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("/v1/mpc/info unauth: want 401 got %d body=%q", rec.Code, rec.Body.String())
+	}
+
+	// Legacy /v1/mpc/health route is also gated now — must 401 without identity.
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/mpc/health", nil))
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("/v1/mpc/health unauth: want 401 got %d body=%q", rec.Code, rec.Body.String())
+	}
+
+	// /v1/mpc/wallets is gated — no headers → 401.
 	rec = httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/mpc/wallets", nil))
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("/v1/mpc/wallets unauth: want 401 got %d body=%q", rec.Code, rec.Body.String())
 	}
 
-	// Identity headers present → middleware allows through to the
-	// inner mux, which 404s for the unknown route. The point: the
-	// 401 became 404, proving the auth gate is the trust boundary.
-	req := httptest.NewRequest(http.MethodGet, "/v1/mpc/wallets", nil)
+	// Identity headers present → middleware allows through to the inner
+	// mux. /v1/mpc/info now responds 200 with node_id; /v1/mpc/wallets
+	// 404s (route not registered). The point: the 401 became something
+	// else, proving the auth gate is the trust boundary.
+	req := httptest.NewRequest(http.MethodGet, "/v1/mpc/info", nil)
+	req.Header.Set(auth.HeaderOrgID, "hanzo")
+	req.Header.Set(auth.HeaderUserID, "user-1")
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("/v1/mpc/info auth: want 200 got %d body=%q", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "mpcd-cloud-test") {
+		t.Fatalf("/v1/mpc/info should include node_id behind auth; body=%q", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/v1/mpc/wallets", nil)
 	req.Header.Set(auth.HeaderOrgID, "hanzo")
 	req.Header.Set(auth.HeaderUserID, "user-1")
 	rec = httptest.NewRecorder()

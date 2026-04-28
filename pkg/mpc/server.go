@@ -10,15 +10,18 @@ import (
 	mpcui "github.com/hanzoai/mpc/ui"
 )
 
-// BuildHTTP returns the canonical mpcd HTTP mux. Public probes
-// (/healthz, /v1/mpc/health) live outside the identity middleware so
-// K8s liveness/readiness checks never touch the JWT path. Authenticated
-// routes (/v1/mpc/*) sit behind RequireIdentity, which reads the
-// gateway-supplied X-Org-Id / X-User-Id / X-User-Email headers into
-// request context.
+// BuildHTTP returns the canonical mpcd HTTP mux. The only public probe
+// is /healthz; it returns {"status":"ok"} with no node identity, so an
+// in-cluster scanner cannot fingerprint mpcd via the unauthenticated
+// surface. Detailed node info (node_id, org binding) lives behind
+// the identity middleware at /v1/mpc/info.
+//
+// Authenticated routes (/v1/mpc/*) sit behind RequireIdentity, which
+// reads the gateway-supplied X-Org-Id / X-User-Id / X-User-Email
+// headers into request context.
 //
 // requireID = MPCD_REQUIRE_IDENTITY (true in cloud, false in solo dev).
-// nodeID is included in probe payloads for cluster diagnostics.
+// nodeID is reported only on the identity-gated /v1/mpc/info endpoint.
 //
 // /_/mpc/* serves the embedded admin UI from ui/embed.go. The bundle
 // is empty until the @hanzo/gui admin-mpc workspace lands; the handler
@@ -26,19 +29,15 @@ import (
 func BuildHTTP(srv *Embedded, nodeID string, requireID bool) http.Handler {
 	mux := http.NewServeMux()
 
-	probe := func(w http.ResponseWriter, r *http.Request) {
+	// Public probe — ok-only, no identity leak. K8s liveness/readiness
+	// hits this; an attacker scanning the cluster gets nothing here.
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"service": "mpc",
-			"status":  "ok",
-			"node_id": nodeID,
-		})
-	}
-	mux.HandleFunc("/healthz", probe)
-	mux.HandleFunc("/v1/mpc/health", probe)
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	})
 
 	identity := auth.RequireIdentity(requireID)
-	mux.Handle("/v1/mpc/", identity(srv.HTTPHandler()))
+	mux.Handle("/v1/mpc/", identity(srv.HTTPHandler(nodeID)))
 
 	// Embedded admin UI shell. The bundle ships empty (no admin-mpc
 	// workspace yet); the handler returns a typed 503 so operators see
