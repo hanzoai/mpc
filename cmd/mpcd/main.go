@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -27,6 +28,25 @@ import (
 )
 
 func main() {
+	// Cloud-mode startup self-check. When HANZO_DEPLOYMENT_MODE=cloud,
+	// MPCD_REQUIRE_IDENTITY MUST be true. If an operator (or stale
+	// manifest) sets it to false in cloud, fail closed at boot rather
+	// than silently exposing the JSON shim. This runs before subcommand
+	// routing so it covers both the thin Embed path and `mpcd consensus`.
+	if strings.EqualFold(os.Getenv("HANZO_DEPLOYMENT_MODE"), "cloud") {
+		if v, ok := os.LookupEnv("MPCD_REQUIRE_IDENTITY"); ok {
+			if b, err := strconv.ParseBool(v); err == nil && !b {
+				fmt.Fprintln(os.Stderr,
+					"FATAL: HANZO_DEPLOYMENT_MODE=cloud requires MPCD_REQUIRE_IDENTITY=true; "+
+						"refusing to start with identity gate disabled in cloud mode")
+				os.Exit(1)
+			}
+		}
+		// Force-on the gate even when the env var is unset; the runtime
+		// reader below will see "true" regardless of operator omission.
+		_ = os.Setenv("MPCD_REQUIRE_IDENTITY", "true")
+	}
+
 	// Subcommand routing: `mpcd consensus …` runs the heavy luxfi/mpc
 	// consensus path (urfave/cli v3 inside consensus.go); everything
 	// else runs the thin Embed shape.

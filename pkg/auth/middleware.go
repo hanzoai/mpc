@@ -11,6 +11,7 @@ package auth
 import (
 	"context"
 	"net/http"
+	"strings"
 )
 
 const (
@@ -28,19 +29,36 @@ const (
 )
 
 // RequireIdentity reads identity headers and attaches them to ctx.
-// When require=true and no headers are present, responds 401. When
-// require=false, missing headers yield empty ctx values — the
+// When require=true:
+//   - Both X-Org-Id and X-User-Id absent (or whitespace-only) → 401.
+//   - X-Org-Id present-but-empty (whitespace-only) with X-User-Id set
+//     → 401. An empty OrgID would unscope every store query and
+//     collapse tenant isolation; defense-in-depth, since hanzoai/gateway
+//     should never forward an empty owner claim, but mpcd does not
+//     trust that assumption.
+//
+// When require=false, missing headers yield empty ctx values — the
 // embedded/dev path.
 func RequireIdentity(require bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			org := r.Header.Get(HeaderOrgID)
-			user := r.Header.Get(HeaderUserID)
-			email := r.Header.Get(HeaderUserEmail)
+			rawOrg := r.Header.Get(HeaderOrgID)
+			rawUser := r.Header.Get(HeaderUserID)
+			org := strings.TrimSpace(rawOrg)
+			user := strings.TrimSpace(rawUser)
+			email := strings.TrimSpace(r.Header.Get(HeaderUserEmail))
 
-			if require && org == "" && user == "" {
-				http.Error(w, `{"error":"identity required","code":401}`, http.StatusUnauthorized)
-				return
+			if require {
+				if org == "" && user == "" {
+					http.Error(w, `{"error":"identity required","code":401}`, http.StatusUnauthorized)
+					return
+				}
+				// X-Org-Id present-but-empty (whitespace) with a user
+				// set would unscope queries — reject.
+				if rawOrg != "" && org == "" {
+					http.Error(w, `{"error":"empty org id","code":401}`, http.StatusUnauthorized)
+					return
+				}
 			}
 
 			ctx := r.Context()

@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	crypto_elliptic "crypto/elliptic"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -462,25 +463,39 @@ func runNodeConsensus(ctx context.Context, c *cli.Command) error {
 		// Internal API bearer token — required for all endpoints except /health.
 		// Source: MPC_INTERNAL_API_KEY env var. In production the StatefulSet
 		// injects this from the KMS-synced mpc-secrets K8s Secret.
+		//
+		// Production (--hsm-provider != env) requires the key to come from
+		// outside this process. Deriving from the on-disk Ed25519 seed when
+		// any operator with kubectl-exec or volume read can pull the seed
+		// is no key at all — fail fast instead of silently degrading.
 		internalAPIKey := os.Getenv("MPC_INTERNAL_API_KEY")
 		if internalAPIKey == "" {
-			// Derive a deterministic key from the node's Ed25519 private key so
-			// all nodes in the cluster share the same key without extra config.
-			// SHA-256(privKey || "mpc-internal-api") truncated to hex.
+			hsmProvider := c.String("hsm-provider")
+			if hsmProvider != "env" {
+				logger.Fatal("MPC_INTERNAL_API_KEY is required in production",
+					fmt.Errorf("hsm-provider=%q forbids derivation from on-disk seed; set MPC_INTERNAL_API_KEY (KMS-synced) on the StatefulSet", hsmProvider))
+			}
+			// Dev only (--hsm-provider=env): derive a deterministic key from
+			// the node's Ed25519 seed so a single-node developer setup works
+			// without KMS. SHA-256(seed || "mpc-internal-api"), hex-encoded.
 			h := sha256.Sum256(append(privKey.Seed(), []byte("mpc-internal-api")...))
 			internalAPIKey = hex.EncodeToString(h[:])
-			logger.Warn("MPC_INTERNAL_API_KEY not set; derived internal API key from node identity (set MPC_INTERNAL_API_KEY in production)")
+			logger.Warn("MPC_INTERNAL_API_KEY not set; derived from node identity (DEV ONLY, hsm-provider=env)")
 		}
+		internalAPIKeyBytes := []byte(internalAPIKey)
 
 		// Rate limiter: 10 requests/min for mutating endpoints (keygen, backup).
 		internalRL := mpcapi.NewRateLimiter(10)
 
 		// internalAuth is middleware that gates all mutating internal endpoints
 		// behind a bearer token. /health is exempt (K8s probes need it).
+		// crypto/subtle.ConstantTimeCompare blocks the byte-by-byte timing
+		// oracle the naive `auth != "Bearer "+key` comparison created.
 		internalAuth := func(next http.HandlerFunc) http.HandlerFunc {
 			return func(w http.ResponseWriter, r *http.Request) {
 				auth := r.Header.Get("Authorization")
-				if auth == "" || auth != "Bearer "+internalAPIKey {
+				provided, ok := strings.CutPrefix(auth, "Bearer ")
+				if !ok || subtle.ConstantTimeCompare([]byte(provided), internalAPIKeyBytes) != 1 {
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusUnauthorized)
 					json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
@@ -1396,4 +1411,3 @@ func eddsaPubKeyToSolAddress(pubKey []byte) string {
 	}
 	return base58.Encode(pubKey)
 }
-
