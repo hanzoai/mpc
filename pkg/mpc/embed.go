@@ -31,13 +31,13 @@ var ErrAlreadyEmbedded = errors.New("mpc: another node is already embedded in th
 
 // EmbedConfig configures the in-process MPC node.
 type EmbedConfig struct {
-	DataDir         string        // "" → "/data/mpcd" (canonical default)
-	HTTPAddr        string        // "" → ":8081" (admin UI + JSON shim)
-	ZAPPort         int           // 0 → 9999 (P2P consensus listener)
-	NodeID          string        // required: node identity, e.g. "mpcd-0"
-	IAMEndpoint     string        // "" → "https://hanzo.id" (advisory; gateway validates JWTs)
-	JWTKeySource    string        // "" → "https://hanzo.id/.well-known/jwks" (advisory)
-	Logger          *slog.Logger  // nil → slog.Default()
+	DataDir         string       // "" → "/data/mpcd" (canonical default)
+	HTTPAddr        string       // "" → ":8081" (admin UI + JSON shim)
+	ZAPPort         int          // 0 → 9999 (P2P consensus listener)
+	NodeID          string       // required: node identity, e.g. "mpcd-0"
+	IAMEndpoint     string       // "" → "https://hanzo.id" (advisory; gateway validates JWTs)
+	JWTKeySource    string       // "" → "https://hanzo.id/.well-known/jwks" (advisory)
+	Logger          *slog.Logger // nil → slog.Default()
 	ShutdownTimeout context.Context
 }
 
@@ -151,24 +151,30 @@ func (e *Embedded) Store() *Store {
 // scoped to the X-Org-Id header attached upstream by hanzoai/gateway
 // (see pkg/auth). Empty org → unscoped solo-mode behaviour.
 //
+// nodeID is supplied by the caller (BuildHTTP) so the public probe
+// surface in server.go can omit identity entirely while the gated
+// /v1/mpc/info endpoint here can report it for legitimate operators.
+//
 // This is a small surface — the canonical MPC dashboard API on
 // luxfi/mpc/pkg/api carries the rich endpoints. The shim here is what
 // the embedded admin UI hits for status, and what cmd/mpcd hangs off
 // the gateway-fronted multitenant routes.
-func (e *Embedded) HTTPHandler() http.Handler {
+func (e *Embedded) HTTPHandler(nodeID string) http.Handler {
 	mux := http.NewServeMux()
 
-	// /v1/mpc/health is the gateway-facing probe. Returns the bound
-	// org from the request context so callers can confirm the
-	// identity middleware is wired correctly without exposing
-	// internal cluster state.
-	mux.HandleFunc("/v1/mpc/health", func(w http.ResponseWriter, r *http.Request) {
+	// /v1/mpc/info is the identity-gated diagnostic endpoint. It
+	// reports node_id and the bound org from request context so
+	// authenticated operators can confirm the gateway wiring without
+	// the data leaking to anonymous in-cluster scanners. The
+	// unauthenticated /healthz probe in server.go intentionally
+	// excludes node_id.
+	mux.HandleFunc("/v1/mpc/info", func(w http.ResponseWriter, r *http.Request) {
 		store := e.store.WithOrg(auth.OrgID(r.Context()))
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"service": "mpc",
 			"status":  "ok",
-			"node_id": e.cfg.NodeID,
+			"node_id": nodeID,
 			"org":     store.OrgID(),
 		})
 	})
