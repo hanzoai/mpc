@@ -1,6 +1,6 @@
 module github.com/hanzoai/mpc/e2e
 
-go 1.26
+go 1.26.3
 
 require (
 	github.com/dgraph-io/badger/v4 v4.9.0
