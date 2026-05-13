@@ -10,7 +10,7 @@ module github.com/hanzoai/mpc
 // All packages from pkg/* have been removed in favor of the canonical
 // github.com/luxfi/mpc/pkg/* upstream.
 
-go 1.26.1
+go 1.26.3
 
 require (
 	filippo.io/age v1.3.1
@@ -121,7 +121,7 @@ require (
 	github.com/luxfi/sampler v1.0.0 // indirect
 	github.com/luxfi/threshold v1.6.0 // indirect
 	github.com/luxfi/utils v1.1.4 // indirect
-	github.com/luxfi/zap v0.2.0 // indirect
+	github.com/zap-proto/go v0.2.0 // indirect
 	github.com/luxfi/zapdb/v4 v4.9.3 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
