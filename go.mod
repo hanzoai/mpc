@@ -17,7 +17,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/hanzoai/base v0.39.1
 	github.com/hashicorp/consul/api v1.33.7
-	github.com/luxfi/hsm v1.1.2
+	github.com/luxfi/hsm v1.1.3
 	github.com/luxfi/mpc v0.0.0-00010101000000-000000000000
 	github.com/luxfi/zapdb v1.9.0
 	github.com/mr-tron/base58 v1.2.0
@@ -98,6 +98,7 @@ require (
 	github.com/klauspost/compress v1.18.5 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/klauspost/crc32 v1.3.0 // indirect
+	github.com/luxfi/accel v1.0.7 // indirect
 	github.com/luxfi/age v1.4.0 // indirect
 	github.com/luxfi/atomic v1.0.0 // indirect
 	github.com/luxfi/cache v1.2.1 // indirect
@@ -106,22 +107,21 @@ require (
 	github.com/luxfi/concurrent v0.0.3 // indirect
 	github.com/luxfi/constants v1.4.7 // indirect
 	github.com/luxfi/container v0.0.4 // indirect
-	github.com/luxfi/crypto v1.17.45 // indirect
-	github.com/luxfi/database v1.17.44 // indirect
+	github.com/luxfi/crypto v1.19.0 // indirect
+	github.com/luxfi/database v1.18.3 // indirect
 	github.com/luxfi/fhe v1.7.7 // indirect
 	github.com/luxfi/geth v1.16.79 // indirect
 	github.com/luxfi/ids v1.2.9 // indirect
-	github.com/luxfi/lattice/v7 v7.0.2 // indirect
+	github.com/luxfi/lattice/v7 v7.1.0 // indirect
 	github.com/luxfi/log v1.4.1 // indirect
-	github.com/luxfi/math v1.2.4 // indirect
+	github.com/luxfi/math v1.4.0 // indirect
 	github.com/luxfi/math/big v0.1.0 // indirect
 	github.com/luxfi/mdns v0.1.0 // indirect
 	github.com/luxfi/metric v1.5.1 // indirect
 	github.com/luxfi/mock v0.1.1 // indirect
 	github.com/luxfi/sampler v1.0.0 // indirect
-	github.com/luxfi/threshold v1.6.0 // indirect
+	github.com/luxfi/threshold v1.6.4 // indirect
 	github.com/luxfi/utils v1.1.4 // indirect
-	github.com/zap-proto/go v0.2.0 // indirect
 	github.com/luxfi/zapdb/v4 v4.9.3 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
@@ -163,6 +163,7 @@ require (
 	github.com/supranational/blst v0.3.16 // indirect
 	github.com/tinylib/msgp v1.6.3 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
+	github.com/zap-proto/go v0.2.0 // indirect
 	github.com/zeebo/blake3 v0.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel v1.43.0 // indirect
