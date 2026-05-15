@@ -320,9 +320,12 @@ footer a:hover{color:#666;text-decoration:none}
 </div>
 </footer>
 <script>
-// PKCE OAuth — client-side, no backend secret needed
-const IAM_URL = {{if .Brand.IAMURL}}{{.Brand.IAMURL | printf "%q"}}{{else}}''{{end}};
-const CLIENT_ID = {{if .Brand.ClientID}}{{.Brand.ClientID | printf "%q"}}{{else}}''{{end}};
+// PKCE OAuth — client-side, no backend secret needed.
+// Brand.IAMURLJS / ClientIDJS return pre-quoted JS string literals
+// rendered via template.JS so html/template does NOT re-escape "/" to "\/"
+// (which would break the verify-curl substring check and clutter source).
+const IAM_URL = {{.Brand.IAMURLJS}};
+const CLIENT_ID = {{.Brand.ClientIDJS}};
 const REDIRECT_URI = location.origin + '/auth/callback';
 const SCOPE = 'openid profile email';
 
@@ -390,8 +393,8 @@ a{color:#fff;text-decoration:underline}
   <p class="error" id="error"></p>
 </div>
 <script>
-const IAM_URL = {{if .Brand.IAMURL}}{{.Brand.IAMURL | printf "%q"}}{{else}}''{{end}};
-const CLIENT_ID = {{if .Brand.ClientID}}{{.Brand.ClientID | printf "%q"}}{{else}}''{{end}};
+const IAM_URL = {{.Brand.IAMURLJS}};
+const CLIENT_ID = {{.Brand.ClientIDJS}};
 const REDIRECT_URI = location.origin + '/auth/callback';
 
 async function handleCallback() {
@@ -513,6 +516,8 @@ h1{font-size:28px;font-weight:700;color:#fff;letter-spacing:-0.02em;margin-botto
 .wallet-card h4{color:#fff;font-size:14px;margin-bottom:8px}
 .wallet-card .curve-badge{display:inline-block;padding:2px 8px;border:1px solid #333;border-radius:4px;font-size:11px;color:#a3a3a3;font-family:monospace;margin-bottom:8px}
 .wallet-card .id{color:#525252;font-size:12px;font-family:monospace;word-break:break-all}
+.wallet-card-link{text-decoration:none;color:inherit;display:block}
+.wallet-card-link:hover .wallet-card{border-color:#525252}
 footer{border-top:1px solid #1a1a1a;padding:24px 0;margin-top:auto}
 footer .container{display:flex;justify-content:space-between;font-size:13px;color:#333}
 </style>
@@ -558,19 +563,19 @@ footer .container{display:flex;justify-content:space-between;font-size:13px;colo
   <div class="api-test">
     <h3>Quick Actions</h3>
     <div class="api-actions">
-      <button class="btn btn-outline btn-sm" onclick="apiCall('GET','/v1/wallets')">List Wallets</button>
+      <button class="btn btn-outline btn-sm" onclick="listWallets()">List Wallets</button>
       <button class="btn btn-primary btn-sm" onclick="createWallet('secp256k1')">+ secp256k1 Wallet</button>
       <button class="btn btn-primary btn-sm" onclick="createWallet('ed25519')">+ Ed25519 Wallet</button>
       <button class="btn btn-primary btn-sm" onclick="createWallet('bls12381')">+ BLS12-381 Wallet</button>
-      <button class="btn btn-outline btn-sm" onclick="apiCall('GET','/health')">Health Check</button>
+      <button class="btn btn-outline btn-sm" onclick="apiCall('GET','/v1/mpc/health')">Health Check</button>
     </div>
     <pre class="result" id="result"></pre>
   </div>
 
-  <div id="wallets-section" style="display:none">
+  <div id="wallets-section" style="margin-top:32px">
     <h3 style="color:#fff;font-size:15px;font-weight:600;margin-bottom:4px">Wallets</h3>
-    <p style="color:#666;font-size:13px;margin-bottom:16px">Your MPC wallets across all supported curves.</p>
-    <div class="wallets-grid" id="wallets-grid"></div>
+    <p style="color:#666;font-size:13px;margin-bottom:16px">Your MPC wallets across all supported curves. Click a wallet to send / receive.</p>
+    <div class="wallets-grid" id="wallets-grid"><p style="color:#525252;font-size:13px;grid-column:1/-1">Loading wallets…</p></div>
   </div>
 </div>
 </main>
@@ -584,7 +589,7 @@ footer .container{display:flex;justify-content:space-between;font-size:13px;colo
 
 <script>
 const API_BASE = location.origin;
-const IAM_URL = {{if .Brand.IAMURL}}{{.Brand.IAMURL | printf "%q"}}{{else}}''{{end}};
+const IAM_URL = {{.Brand.IAMURLJS}};
 const token = localStorage.getItem('mpc_token');
 
 if (!token) { location.href = '/'; }
@@ -604,6 +609,38 @@ async function loadUser() {
       document.getElementById('user-info').style.display = 'block';
     }
   } catch (e) {}
+}
+
+async function listWallets() {
+  const grid = document.getElementById('wallets-grid');
+  grid.innerHTML = '<p style="color:#525252;font-size:13px;grid-column:1/-1">Loading wallets…</p>';
+  try {
+    const resp = await fetch(API_BASE + '/v1/mpc/wallets', { headers: { 'Authorization': 'Bearer ' + token } });
+    if (!resp.ok) {
+      grid.innerHTML = '<p style="color:#dc2626;font-size:13px;grid-column:1/-1">Failed to load wallets (' + resp.status + ').</p>';
+      return;
+    }
+    const data = await resp.json();
+    const wallets = data.wallets || [];
+    if (wallets.length === 0) {
+      grid.innerHTML = '<p style="color:#525252;font-size:13px;grid-column:1/-1">No wallets yet. Create one above.</p>';
+      return;
+    }
+    grid.innerHTML = wallets.map(function(w){
+      var addr = w.address || '—';
+      var pk = w.public_key || '';
+      return '<a href="/dashboard/wallets/' + encodeURIComponent(w.id) + '" class="wallet-card-link">'
+        + '<div class="wallet-card">'
+        + '  <h4>' + (w.curve || 'wallet') + '</h4>'
+        + '  <div class="curve-badge">' + (w.status || 'pending') + '</div>'
+        + '  <div class="id">' + (w.id || '') + '</div>'
+        + (pk ? '<div style="margin-top:8px;color:#525252;font-size:11px;word-break:break-all">' + pk.substring(0,40) + '…</div>' : '')
+        + '</div>'
+        + '</a>';
+    }).join('');
+  } catch (e) {
+    grid.innerHTML = '<p style="color:#dc2626;font-size:13px;grid-column:1/-1">Error: ' + e.message + '</p>';
+  }
 }
 
 function copyToken() {
@@ -629,7 +666,9 @@ async function apiCall(method, path, body) {
   }
 }
 
-function createWallet(curve) { apiCall('POST', '/v1/wallets', { curve: curve }); }
+function createWallet(curve) {
+  apiCall('POST', '/v1/mpc/wallets', { curve: curve }).then(function(){ setTimeout(listWallets, 1500); });
+}
 
 function logout() {
   localStorage.removeItem('mpc_token');
@@ -638,6 +677,246 @@ function logout() {
 }
 
 loadUser();
+listWallets();
+</script>
+</body>
+</html>`
+
+// walletDetailTemplate renders the per-wallet send/receive view at
+// /dashboard/wallets/{id}. Everything below the chrome is JS-driven: the
+// page fetches wallet metadata, balance, and posts to /v1/mpc/wallets/<id>/sign
+// (no broadcast — the response is the signed tx blob).
+const walletDetailTemplate = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Brand.TitlePrefix}}MPC — Wallet</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;color:#d4d4d4;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;min-height:100vh;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
+a{color:#fff;text-decoration:none}
+a:hover{text-decoration:underline}
+.container{max-width:880px;margin:0 auto;padding:0 24px;width:100%}
+header{border-bottom:1px solid #1a1a1a;padding:16px 0;background:#000}
+header .container{display:flex;align-items:center;justify-content:space-between}
+.logo{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:600;color:#fff;letter-spacing:-0.02em}
+.logo svg{width:26px;height:26px}
+.nav-links{display:flex;gap:16px;align-items:center}
+.nav-links a{color:#666;font-size:14px}
+.nav-links a:hover{color:#fff}
+.btn{display:inline-flex;align-items:center;padding:8px 20px;border-radius:6px;font-size:14px;font-weight:500;transition:all 0.15s;cursor:pointer;border:none;font-family:inherit}
+.btn-primary{background:#fff;color:#000}
+.btn-primary:hover{background:#d4d4d4}
+.btn-outline{border:1px solid #333;color:#fff;background:transparent}
+.btn-outline:hover{border-color:#666}
+.btn-sm{padding:6px 14px;font-size:13px}
+main{flex:1;padding:32px 0}
+h1{font-size:24px;font-weight:700;color:#fff;letter-spacing:-0.02em;margin-bottom:8px}
+.subtitle{color:#666;font-size:14px;margin-bottom:24px}
+.crumb{color:#525252;font-size:13px;margin-bottom:16px}
+.crumb a{color:#666}
+.panel{border:1px solid #1a1a1a;border-radius:8px;padding:20px;margin-bottom:20px}
+.panel h2{color:#fff;font-size:14px;font-weight:600;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.04em}
+.row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #0a0a0a;font-size:13px;align-items:center;gap:12px}
+.row:last-child{border-bottom:none}
+.row .lbl{color:#525252;flex-shrink:0;min-width:90px}
+.row .val{color:#d4d4d4;font-family:monospace;font-size:12px;word-break:break-all;flex:1;text-align:right}
+.copy{background:#1a1a1a;border:1px solid #333;color:#a3a3a3;padding:3px 8px;border-radius:4px;font-size:11px;cursor:pointer;flex-shrink:0}
+.copy:hover{background:#262626;color:#fff}
+.copy.copied{color:#22c55e}
+.address-big{font-family:monospace;font-size:14px;color:#fff;background:#050505;border:1px solid #1a1a1a;border-radius:6px;padding:14px 16px;word-break:break-all;line-height:1.6}
+.balance-big{font-size:28px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-0.02em}
+.balance-unit{color:#525252;font-size:14px;margin-left:8px;font-weight:400}
+.balance-note{color:#525252;font-size:11px;margin-top:6px}
+.form-row{margin-bottom:12px}
+.form-row label{display:block;color:#a3a3a3;font-size:12px;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.04em}
+.form-row input,.form-row textarea{width:100%;background:#050505;border:1px solid #1a1a1a;border-radius:6px;padding:10px 12px;color:#fff;font-family:monospace;font-size:13px;outline:none}
+.form-row input:focus,.form-row textarea:focus{border-color:#525252}
+.send-actions{display:flex;gap:8px;align-items:center}
+.note{color:#525252;font-size:12px;margin-top:8px}
+.result-box{background:#050505;border:1px solid #1a1a1a;border-radius:6px;padding:14px;font-family:monospace;font-size:12px;color:#a3a3a3;white-space:pre-wrap;word-break:break-all;margin-top:12px;display:none;max-height:240px;overflow:auto}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:720px){.cols{grid-template-columns:1fr}}
+footer{border-top:1px solid #1a1a1a;padding:20px 0;margin-top:auto}
+footer .container{display:flex;justify-content:space-between;font-size:12px;color:#333}
+</style>
+</head>
+<body>
+<header>
+<div class="container">
+  <a href="/" class="logo">
+    <svg viewBox="0 0 67 67" xmlns="http://www.w3.org/2000/svg"><rect width="67" height="67" fill="#000"/><path d="M22.21 67V44.6369H0V67H22.21Z" fill="#fff"/><path d="M0 44.6369L22.21 46.8285V44.6369H0Z" fill="#ddd"/><path d="M66.7038 22.3184H22.2534L0.0878906 44.6367H44.4634L66.7038 22.3184Z" fill="#fff"/><path d="M22.21 0H0V22.3184H22.21V0Z" fill="#fff"/><path d="M66.7198 0H44.5098V22.3184H66.7198V0Z" fill="#fff"/><path d="M66.6753 22.3185L44.5098 20.0822V22.3185H66.6753Z" fill="#ddd"/><path d="M66.7198 67V44.6369H44.5098V67H66.7198Z" fill="#fff"/></svg>
+    {{.Brand.TitlePrefix}}MPC
+  </a>
+  <div class="nav-links">
+    <a href="/dashboard">Dashboard</a>
+    <a href="#" onclick="logout()" class="btn btn-outline btn-sm">Sign Out</a>
+  </div>
+</div>
+</header>
+
+<main>
+<div class="container">
+  <div class="crumb"><a href="/dashboard">Dashboard</a> &raquo; <span id="crumb-id">Wallet</span></div>
+  <h1 id="wallet-title">Wallet</h1>
+  <p class="subtitle" id="wallet-sub">Loading wallet metadata…</p>
+
+  <div class="panel">
+    <h2>Identity</h2>
+    <div class="row"><span class="lbl">Wallet ID</span><span class="val" id="w-id">—</span><button class="copy" onclick="copyText('w-id', this)">Copy</button></div>
+    <div class="row"><span class="lbl">Curve</span><span class="val" id="w-curve">—</span><span></span></div>
+    <div class="row"><span class="lbl">Status</span><span class="val" id="w-status">—</span><span></span></div>
+    <div class="row"><span class="lbl">Threshold</span><span class="val" id="w-threshold">—</span><span></span></div>
+    <div class="row"><span class="lbl">Public Key</span><span class="val" id="w-pubkey">—</span><button class="copy" onclick="copyText('w-pubkey', this)">Copy</button></div>
+  </div>
+
+  <div class="panel">
+    <h2>Receive</h2>
+    <div class="address-big" id="w-address">—</div>
+    <div style="margin-top:12px"><button class="btn btn-outline btn-sm" onclick="copyText('w-address', this)">Copy Address</button></div>
+    <div class="note">Share this address to receive funds. Chain-aware encoding (bech32/EIP-55) is applied by the chain adapter when available; until then the raw hex form is shown.</div>
+  </div>
+
+  <div class="cols">
+    <div class="panel">
+      <h2>Balance</h2>
+      <div><span class="balance-big" id="w-balance">—</span><span class="balance-unit" id="w-unit">wei</span></div>
+      <div class="balance-note" id="w-balance-note"></div>
+    </div>
+    <div class="panel">
+      <h2>Send</h2>
+      <div class="form-row">
+        <label for="send-to">Recipient</label>
+        <input id="send-to" type="text" placeholder="0x… / bc1… / addr…" autocomplete="off">
+      </div>
+      <div class="form-row">
+        <label for="send-amount">Amount</label>
+        <input id="send-amount" type="text" placeholder="0.0" autocomplete="off">
+      </div>
+      <div class="form-row">
+        <label for="send-message">Message (hex)</label>
+        <input id="send-message" type="text" placeholder="hex-encoded payload to sign" autocomplete="off">
+      </div>
+      <div class="send-actions">
+        <button class="btn btn-primary btn-sm" onclick="signTx()">Sign &amp; Send</button>
+        <span class="note">Does NOT broadcast — returns signed tx for downstream chain adapter.</span>
+      </div>
+      <div class="result-box" id="send-result"></div>
+    </div>
+  </div>
+</div>
+</main>
+
+<footer>
+<div class="container">
+  <span>&copy; {{.Brand.Name}}</span>
+  {{if .Brand.SiteURL}}<a href="{{.Brand.SiteURL}}" style="color:#333">{{.Brand.SiteURL}}</a>{{end}}
+</div>
+</footer>
+
+<script>
+const API_BASE = location.origin;
+const token = localStorage.getItem('mpc_token');
+if (!token) { location.href = '/'; }
+
+const walletID = decodeURIComponent(location.pathname.split('/').pop() || '');
+document.getElementById('crumb-id').textContent = walletID.substring(0, 8) + '…';
+document.getElementById('w-id').textContent = walletID;
+
+function copyText(id, btn) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const txt = el.textContent || el.value || '';
+  navigator.clipboard.writeText(txt);
+  const orig = btn.textContent;
+  btn.textContent = 'Copied';
+  btn.classList.add('copied');
+  setTimeout(function(){ btn.textContent = orig; btn.classList.remove('copied'); }, 1200);
+}
+
+function logout() {
+  localStorage.removeItem('mpc_token');
+  localStorage.removeItem('mpc_refresh_token');
+  location.href = '/';
+}
+
+async function loadWallet() {
+  try {
+    const resp = await fetch(API_BASE + '/v1/mpc/wallets/' + encodeURIComponent(walletID), {
+      headers: { 'Authorization': 'Bearer ' + token },
+    });
+    if (!resp.ok) {
+      document.getElementById('wallet-sub').textContent = 'Wallet not found (' + resp.status + ').';
+      return;
+    }
+    const w = await resp.json();
+    document.getElementById('wallet-title').textContent = (w.curve || 'wallet') + ' wallet';
+    document.getElementById('wallet-sub').textContent = w.status === 'active'
+      ? 'Active. ' + (w.threshold || '?') + '-of-' + (w.parties || '?') + ' threshold.'
+      : 'Status: ' + (w.status || 'unknown');
+    document.getElementById('w-curve').textContent = w.curve || '—';
+    document.getElementById('w-status').textContent = w.status || '—';
+    document.getElementById('w-threshold').textContent = w.threshold
+      ? (w.threshold + '-of-' + (w.parties || '?'))
+      : '—';
+    document.getElementById('w-pubkey').textContent = w.public_key || '—';
+    document.getElementById('w-address').textContent = w.address || w.public_key || '—';
+  } catch (e) {
+    document.getElementById('wallet-sub').textContent = 'Error: ' + e.message;
+  }
+}
+
+async function loadBalance() {
+  try {
+    const resp = await fetch(API_BASE + '/v1/mpc/wallets/' + encodeURIComponent(walletID) + '/balance', {
+      headers: { 'Authorization': 'Bearer ' + token },
+    });
+    if (!resp.ok) {
+      document.getElementById('w-balance').textContent = '—';
+      document.getElementById('w-balance-note').textContent = 'Balance unavailable (' + resp.status + ').';
+      return;
+    }
+    const b = await resp.json();
+    document.getElementById('w-balance').textContent = b.balance || '0';
+    document.getElementById('w-unit').textContent = b.unit || 'wei';
+    if (b.pending || b.note) {
+      document.getElementById('w-balance-note').textContent = b.note || 'Balance pending chain-adapter wiring.';
+    }
+  } catch (e) {
+    document.getElementById('w-balance-note').textContent = 'Error: ' + e.message;
+  }
+}
+
+async function signTx() {
+  const out = document.getElementById('send-result');
+  out.style.display = 'block';
+  const message = document.getElementById('send-message').value.trim();
+  const to = document.getElementById('send-to').value.trim();
+  const amount = document.getElementById('send-amount').value.trim();
+  if (!message) {
+    out.textContent = 'message (hex) is required — encode the tx payload to sign.';
+    return;
+  }
+  out.textContent = 'POST /v1/mpc/wallets/' + walletID + '/sign …';
+  try {
+    const resp = await fetch(API_BASE + '/v1/mpc/wallets/' + encodeURIComponent(walletID) + '/sign', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: message,
+        metadata: { destination: to, amount: amount },
+      }),
+    });
+    const txt = await resp.text();
+    try { out.textContent = JSON.stringify(JSON.parse(txt), null, 2); } catch (_) { out.textContent = txt; }
+  } catch (e) {
+    out.textContent = 'Error: ' + e.message;
+  }
+}
+
+loadWallet();
+loadBalance();
 </script>
 </body>
 </html>`
