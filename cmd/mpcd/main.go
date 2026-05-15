@@ -33,6 +33,8 @@ import (
 	"github.com/hanzoai/base/core"
 	"github.com/luxfi/hsm"
 
+	"github.com/hanzoai/mpc/pkg/landing"
+
 	uimpc "github.com/luxfi/mpc/ui"
 
 	mpcapi "github.com/luxfi/mpc/pkg/api"
@@ -747,12 +749,17 @@ func runNodeConsensus(ctx context.Context, c *cli.Command) error {
 			// Mount chi handler on Base
 			os.Args = []string{"mpcd", "serve", "--http", apiListenAddr}
 			baseApp := base.New()
+			// Wrap the API handler with the brand-neutral landing handler so
+			// GET /, /dashboard, /auth/callback render per-Host branded pages
+			// (Hanzo/Lux/Zoo/...) while every other path falls through to the
+			// canonical MPC API surface. No backend signing logic is touched.
+			brandedHandler := landing.Handler(apiServer.Handler())
 			baseApp.OnServe().BindFunc(func(e *core.ServeEvent) error {
 				// Embedded admin UI at /_/mpc/
 				e.Router.GET("/_/mpc/{path...}", apis.Static(uimpc.DistDirFS(), true))
 
 				e.Router.Any("/{path...}", func(re *core.RequestEvent) error {
-					apiServer.Handler().ServeHTTP(re.Response, re.Request)
+					brandedHandler.ServeHTTP(re.Response, re.Request)
 					return nil
 				})
 				return e.Next()
@@ -1181,6 +1188,18 @@ func (r *ConsensusPeerRegistry) ArePeersReady() bool {
 
 func (r *ConsensusPeerRegistry) GetReadyPeersCount() int64 {
 	return r.registry.GetReadyPeersCount()
+}
+
+// HasSigningQuorum reports whether enough peers (including self) are
+// ready to participate in a signing round at the given threshold. Mirrors
+// luxfi/mpc/pkg/mpc/registry.go: when threshold <= 0 we require at least
+// one ready peer; otherwise we require >= threshold ready peers.
+func (r *ConsensusPeerRegistry) HasSigningQuorum(threshold int) bool {
+	ready := r.registry.GetReadyPeersCount()
+	if threshold <= 0 {
+		return ready >= 1
+	}
+	return ready >= int64(threshold)
 }
 
 func (r *ConsensusPeerRegistry) GetTotalPeersCount() int64 {
