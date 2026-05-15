@@ -12,7 +12,11 @@
 //     all drop the brand prefix).
 package landing
 
-import "strings"
+import (
+	"encoding/json"
+	"html/template"
+	"strings"
+)
 
 // Brand captures every visible string a deployment needs to brand the
 // landing/dashboard. The empty Brand renders an entirely brand-neutral
@@ -58,6 +62,34 @@ func (b Brand) SignInLabel() string {
 		return "Sign In"
 	}
 	return "Sign In with " + b.Name + " ID"
+}
+
+// IAMURLJS returns the IAM endpoint as a JS string literal safe to drop
+// into a <script> context. html/template's default JS escaping turns
+// every `/` in a URL into `\/`, which breaks the verify-curl literal
+// match in CI (and clutters page source) even though browsers parse it
+// fine. We pre-quote with encoding/json (which preserves `/`) and wrap
+// in template.JS to bypass the auto-escaper. Returns `""` for unbranded.
+func (b Brand) IAMURLJS() template.JS { return jsString(b.IAMURL) }
+
+// ClientIDJS is the JS-safe pre-quoted ClientID for <script> contexts.
+func (b Brand) ClientIDJS() template.JS { return jsString(b.ClientID) }
+
+// jsString returns `"<value>"` with proper JS escaping for the contents
+// but without escaping `/` (so URLs render as `https://...` not
+// `https:\/\/...`). Empty input returns `""`.
+func jsString(s string) template.JS {
+	if s == "" {
+		return template.JS(`""`)
+	}
+	buf, err := json.Marshal(s)
+	if err != nil {
+		return template.JS(`""`)
+	}
+	// encoding/json emits valid JSON strings which are also valid JS string
+	// literals; it preserves "/" by default. Cast to template.JS to skip
+	// html/template's JS escaper.
+	return template.JS(buf)
 }
 
 // brandTable is the per-Host brand registry. Keys are the registered

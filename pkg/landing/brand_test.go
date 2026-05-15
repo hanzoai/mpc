@@ -154,6 +154,65 @@ func TestHandlerPerHostBranding(t *testing.T) {
 	}
 }
 
+// TestLandingRendersLiteralIAMURL guards the v1.2.4 fix: the rendered
+// HTML must contain `const IAM_URL = "https://hanzo.id"` *verbatim* —
+// no `\"` Go-quoted form (was the bug pre-fix), no `\/` JS-escaped slash
+// (still parses fine but breaks verify-curl substring match and clutters
+// source). Same for CLIENT_ID.
+func TestLandingRendersLiteralIAMURL(t *testing.T) {
+	h := Handler(nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Host = "mpc.hanzo.ai"
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	body := w.Body.String()
+	wantIAM := `const IAM_URL = "https://hanzo.id"`
+	wantClient := `const CLIENT_ID = "hanzo-mpc-client"`
+	for _, want := range []string{wantIAM, wantClient} {
+		if !strings.Contains(body, want) {
+			t.Errorf("missing %q in rendered HTML", want)
+		}
+	}
+	// Negative: ensure the double-quote bug never reappears.
+	for _, bad := range []string{
+		`IAM_URL = "\"`,            // Go-quoted, the original bug
+		`IAM_URL = "https:\/\/`,    // JS-escaped slash, the secondary bug
+		`CLIENT_ID = "\"`,
+	} {
+		if strings.Contains(body, bad) {
+			t.Errorf("forbidden substring %q present in rendered HTML", bad)
+		}
+	}
+}
+
+// TestWalletDetailRoute exercises GET /dashboard/wallets/<id>.
+// The page is brand-aware and includes the wallet send/receive UI.
+func TestWalletDetailRoute(t *testing.T) {
+	h := Handler(nil)
+	req := httptest.NewRequest(http.MethodGet, "/dashboard/wallets/wallet-abc-123", nil)
+	req.Host = "mpc.hanzo.ai"
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d, want 200", w.Code)
+	}
+	body := w.Body.String()
+	must := []string{
+		"Hanzo MPC — Wallet",
+		"Send",
+		"Receive",
+		"Sign &amp; Send",
+		"/v1/mpc/wallets/",
+	}
+	for _, s := range must {
+		if !strings.Contains(body, s) {
+			t.Errorf("missing %q in wallet-detail body", s)
+		}
+	}
+}
+
 func TestHandlerDelegatesUnknownPaths(t *testing.T) {
 	called := false
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
