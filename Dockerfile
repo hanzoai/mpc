@@ -15,7 +15,7 @@ ARG TARGETARCH
 ARG TARGETOS=linux
 # Pin to a luxfi/mpc commit/branch. Override via --build-arg LUXFI_MPC_REF=...
 # (e.g. a specific tag) when a reproducible build is needed.
-ARG LUXFI_MPC_REF=v1.14.4
+ARG LUXFI_MPC_REF=v1.14.5
 
 RUN apk add --no-cache git make
 
