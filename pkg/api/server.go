@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math/big"
 	"net/http"
 	"os"
@@ -90,12 +91,21 @@ func NewServer(cfg Config) *Server {
 	mux.HandleFunc("GET /{$}", s.handleLanding)
 	mux.HandleFunc("GET /health", s.handleHealth)
 	mux.HandleFunc("GET /readyz", s.handleHealth)
+	mux.HandleFunc("GET /v1/mpc/health", s.handleHealth)
 	mux.HandleFunc("GET /auth/callback", s.handleAuthCallback)
 	mux.HandleFunc("GET /dashboard", s.handleDashboard)
+	mux.HandleFunc("GET /dashboard/wallets/{id}", s.handleWalletDetail)
 
-	// Protected endpoints (IAM token or sk_mpc_ API key)
+	// Protected endpoints (IAM token or sk_mpc_ API key).
+	//
+	// Canonical surface: /v1/mpc/* (org-policy: api.<org>.* hosts MUST NOT
+	// re-prefix routes with /api/). The legacy /api/v1/* prefix remains
+	// mounted for backward-compat with older clients; new integrations
+	// should use /v1/mpc/*. Both prefixes resolve to the same handlers via
+	// path canonicalization in routeAPI().
 	authed := s.iam.Wrap(s.apiKeys, http.HandlerFunc(s.routeAPI))
-	mux.Handle("/api/", authed)
+	mux.Handle("/v1/mpc/", authed)
+	mux.Handle("/api/", authed) // legacy, undocumented
 
 	s.httpServer = &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Port),
@@ -121,8 +131,24 @@ func (s *Server) Shutdown(ctx context.Context) error {
 }
 
 // routeAPI dispatches authenticated API requests.
+//
+// Path canonicalization: handlers are written against "/api/v1/<resource>"
+// for historical reasons. Callers may hit either:
+//
+//   /v1/mpc/<resource>    canonical (advertised, matches org policy that
+//                         api.<org>.<tld> hosts MUST NOT use /api/* prefix)
+//   /api/v1/<resource>    legacy, undocumented, kept for backward compat
+//
+// We rewrite /v1/mpc/* → /api/v1/* once on entry so the case table below
+// stays single-source for both prefixes.
 func (s *Server) routeAPI(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
+	if strings.HasPrefix(path, "/v1/mpc/") {
+		path = "/api/v1/" + strings.TrimPrefix(path, "/v1/mpc/")
+		// Mutate the request so downstream handlers (which TrimPrefix on
+		// r.URL.Path) see the legacy form they were written against.
+		r.URL.Path = path
+	}
 
 	switch {
 	// Wallets
@@ -130,6 +156,10 @@ func (s *Server) routeAPI(w http.ResponseWriter, r *http.Request) {
 		s.handleCreateWallet(w, r)
 	case r.Method == "GET" && path == "/api/v1/wallets":
 		s.handleListWallets(w, r)
+	case r.Method == "GET" && strings.HasSuffix(path, "/balance") && strings.HasPrefix(path, "/api/v1/wallets/"):
+		s.handleGetWalletBalance(w, r)
+	case r.Method == "POST" && strings.HasSuffix(path, "/sign") && strings.HasPrefix(path, "/api/v1/wallets/"):
+		s.handleWalletSign(w, r)
 	case r.Method == "GET" && strings.HasPrefix(path, "/api/v1/wallets/") && !strings.Contains(path[len("/api/v1/wallets/"):], "/"):
 		s.handleGetWallet(w, r)
 
@@ -210,6 +240,14 @@ func (s *Server) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	landing.RenderDashboard(w, r)
+}
+
+// handleWalletDetail serves the brand-aware wallet-detail SPA fragment.
+// The wallet id comes from the URL path; the page itself fetches wallet
+// + balance from /v1/mpc/wallets/<id> and /v1/mpc/wallets/<id>/balance
+// using the bearer token in localStorage (same auth as the dashboard).
+func (s *Server) handleWalletDetail(w http.ResponseWriter, r *http.Request) {
+	landing.RenderWalletDetail(w, r)
 }
 
 
@@ -430,6 +468,88 @@ func (s *Server) handleGetWallet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusNotFound, map[string]string{"error": "wallet not found"})
+}
+
+// --- Wallet Balance ---
+//
+// Balance lookup is chain-specific; this MPC service does not run light
+// clients so it cannot natively report balances. The handler returns a
+// stub `0` until a chain-adapter layer is added, but with `pending: true`
+// so the SPA can flag the value as approximate. New integration target:
+// chain adapters live in pkg/chain/<id>.go and implement BalanceProvider.
+
+func (s *Server) handleGetWalletBalance(w http.ResponseWriter, r *http.Request) {
+	user := GetUser(r.Context())
+	// Path is /api/v1/wallets/{id}/balance after canonicalization.
+	path := strings.TrimPrefix(r.URL.Path, "/api/v1/wallets/")
+	walletID := strings.TrimSuffix(path, "/balance")
+	if walletID == "" || strings.Contains(walletID, "/") {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid wallet id"})
+		return
+	}
+
+	// Ownership check (in-memory first, then KV).
+	if wallet, ok := s.wallets.GetWallet(walletID); ok {
+		if wallet.Owner != user.ID {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "access denied"})
+			return
+		}
+	} else if s.kv != nil {
+		ownerData, err := s.kv.Get("wallet_owner/" + walletID)
+		if err != nil || ownerData == nil || string(ownerData) != user.ID {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "wallet not found"})
+			return
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"wallet_id": walletID,
+		"balance":   "0",
+		"unit":      "wei",
+		"pending":   true,
+		"note":      "chain-adapter not yet wired; balance is a placeholder",
+	})
+}
+
+// --- Wallet-Scoped Sign ---
+//
+// Mirrors POST /api/v1/sign but extracts the wallet id from the URL so the
+// dashboard can POST /v1/mpc/wallets/<id>/sign with just {to, amount, data}
+// instead of repeating wallet_id in the body. Body schema:
+//
+//   { "message": "<hex>", "metadata": { "chain": "...", "to": "...", "amount": "..." } }
+//
+// We DO NOT broadcast. The response carries session_id and the eventual
+// signature once threshold protocols finalise — broadcasting is a chain
+// adapter's responsibility, not MPC's.
+
+func (s *Server) handleWalletSign(w http.ResponseWriter, r *http.Request) {
+	// /api/v1/wallets/{id}/sign
+	path := strings.TrimPrefix(r.URL.Path, "/api/v1/wallets/")
+	walletID := strings.TrimSuffix(path, "/sign")
+	if walletID == "" || strings.Contains(walletID, "/") {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid wallet id"})
+		return
+	}
+
+	// Decode the wallet-scoped payload and forward into handleSign by
+	// rewriting the body to the canonical {wallet_id, message, metadata}
+	// shape. Keeps the policy/keytype/curve logic single-source.
+	var body struct {
+		Message  string         `json:"message"`
+		Metadata map[string]any `json:"metadata"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+	rewrapped, _ := json.Marshal(signRequest{
+		WalletID: walletID,
+		Message:  body.Message,
+		Metadata: body.Metadata,
+	})
+	r.Body = io.NopCloser(strings.NewReader(string(rewrapped)))
+	s.handleSign(w, r)
 }
 
 // --- Signing ---
