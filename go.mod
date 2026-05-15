@@ -19,7 +19,6 @@ require (
 	github.com/hashicorp/consul/api v1.33.7
 	github.com/luxfi/hsm v1.1.3
 	github.com/luxfi/mpc v0.0.0-00010101000000-000000000000
-	github.com/luxfi/zapdb v1.9.0
 	github.com/mr-tron/base58 v1.2.0
 	github.com/nats-io/nats.go v1.50.0
 	github.com/spf13/viper v1.21.0
@@ -34,6 +33,8 @@ require (
 	github.com/ALTree/bigfloat v0.2.0 // indirect
 	github.com/ProjectZKM/Ziren/crates/go-runtime/zkvm_runtime v0.0.0-20260311194731-d5b7577c683d // indirect
 	github.com/agl/ed25519 v0.0.0-20200225211852-fd4d107ace12 // indirect
+	github.com/ansel1/merry v1.8.1 // indirect
+	github.com/ansel1/merry/v2 v2.2.2 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/avast/retry-go v3.0.0+incompatible // indirect
@@ -59,6 +60,8 @@ require (
 	github.com/fxamacker/cbor/v2 v2.9.1 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.13 // indirect
 	github.com/ganigeorgiev/fexpr v0.5.0 // indirect
+	github.com/gemalto/flume v1.0.0 // indirect
+	github.com/gemalto/kmip-go v0.1.0 // indirect
 	github.com/go-chi/chi/v5 v5.2.5 // indirect
 	github.com/go-chi/cors v1.2.2 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
@@ -71,6 +74,8 @@ require (
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/google/flatbuffers v25.12.19+incompatible // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
+	github.com/google/go-sev-guest v0.14.1 // indirect
+	github.com/google/logger v1.1.1 // indirect
 	github.com/gorilla/rpc v1.2.1 // indirect
 	github.com/grandcat/zeroconf v1.0.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3 // indirect
@@ -107,12 +112,14 @@ require (
 	github.com/luxfi/concurrent v0.0.3 // indirect
 	github.com/luxfi/constants v1.4.7 // indirect
 	github.com/luxfi/container v0.0.4 // indirect
+	github.com/luxfi/corona v0.3.1 // indirect
 	github.com/luxfi/crypto v1.19.0 // indirect
 	github.com/luxfi/database v1.18.3 // indirect
 	github.com/luxfi/fhe v1.7.7 // indirect
 	github.com/luxfi/geth v1.16.79 // indirect
 	github.com/luxfi/ids v1.2.9 // indirect
 	github.com/luxfi/lattice/v7 v7.1.0 // indirect
+	github.com/luxfi/lens v0.1.3 // indirect
 	github.com/luxfi/log v1.4.1 // indirect
 	github.com/luxfi/math v1.4.0 // indirect
 	github.com/luxfi/math/big v0.1.0 // indirect
@@ -120,19 +127,23 @@ require (
 	github.com/luxfi/metric v1.5.1 // indirect
 	github.com/luxfi/mock v0.1.1 // indirect
 	github.com/luxfi/sampler v1.0.0 // indirect
-	github.com/luxfi/threshold v1.6.4 // indirect
+	github.com/luxfi/threshold v1.6.10 // indirect
 	github.com/luxfi/utils v1.1.4 // indirect
-	github.com/luxfi/zapdb/v4 v4.9.3 // indirect
+	github.com/luxfi/zap v0.2.0 // indirect
+	github.com/luxfi/zapdb v1.9.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible // indirect
+	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/miekg/dns v1.1.72 // indirect
+	github.com/miekg/pkcs11 v1.1.1 // indirect
 	github.com/mimoo/StrobeGo v0.0.0-20220103164710-9a04d6ca976b // indirect
 	github.com/minio/crc64nvme v1.1.1 // indirect
 	github.com/minio/md5-simd v1.1.2 // indirect
 	github.com/minio/minio-go/v7 v7.0.100 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
+	github.com/montanaflynn/stats v0.9.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/nats-io/nkeys v0.4.15 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
@@ -163,7 +174,6 @@ require (
 	github.com/supranational/blst v0.3.16 // indirect
 	github.com/tinylib/msgp v1.6.3 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	github.com/zap-proto/go v0.2.0 // indirect
 	github.com/zeebo/blake3 v0.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel v1.43.0 // indirect
@@ -174,6 +184,8 @@ require (
 	go.temporal.io/sdk v1.41.1 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/mock v0.6.0 // indirect
+	go.uber.org/multierr v1.11.0 // indirect
+	go.uber.org/zap v1.27.1 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/exp v0.0.0-20260312153236-7ab1446f8b90 // indirect
