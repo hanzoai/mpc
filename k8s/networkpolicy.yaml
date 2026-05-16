@@ -1,0 +1,59 @@
+# mpc NetworkPolicy — defense-in-depth.
+#
+# Trust boundary: only hanzoai/gateway (app=hanzoai-gateway) may
+# reach mpc on port 8081. K8s probes from the kubelet still work
+# because Kubernetes evaluates probes outside this policy. The
+# legacy P2P consensus port (9999) is intentionally absent — this
+# Deployment runs the thin Embed path; consensus mode is opt-in
+# behind a separate StatefulSet with its own NetworkPolicy.
+#
+# DNS egress to kube-dns and TCP egress to OTel collector are the
+# only outbound flows the embed path needs. Tighten further when a
+# concrete egress allowlist is finalised.
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mpc
+  namespace: hanzo
+  labels:
+    app: mpc
+    app.kubernetes.io/name: mpc
+    app.kubernetes.io/part-of: hanzo-platform
+spec:
+  podSelector:
+    matchLabels:
+      app: mpc
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: hanzoai-gateway
+      ports:
+        - protocol: TCP
+          port: 8081
+  egress:
+    # DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # OTel collector (telemetry export)
+    - to:
+        - podSelector:
+            matchLabels:
+              app: otel-collector
+      ports:
+        - protocol: TCP
+          port: 4318
