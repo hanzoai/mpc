@@ -30,6 +30,13 @@ RUN git clone --depth=1 --branch="${LUXFI_MPC_REF}" \
 
 WORKDIR /build/hanzo/mpc
 
+# luxfi packages bypass proxy.golang.org + sum.golang.org because tags have
+# been force-pushed in the past (notably edwards25519@v0.1.0). The canonical
+# hash lives at the GitHub origin; the public sumdb may serve a stale cached
+# entry. Matches luxfi/mpc's own CI knobs.
+ENV GOPRIVATE=github.com/luxfi/*
+ENV GOPROXY=https://proxy.golang.org,direct
+
 RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
 
