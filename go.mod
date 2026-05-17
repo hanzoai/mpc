@@ -82,9 +82,9 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0 // indirect
 	github.com/gtank/merlin v0.1.1 // indirect
 	github.com/gtank/ristretto255 v0.2.0 // indirect
-	github.com/hanzoai/dbx v1.13.0 // indirect
+	github.com/hanzoai/dbx v1.16.0 // indirect
 	github.com/hanzoai/kv-go/v9 v9.18.0 // indirect
-	github.com/hanzoai/orm v0.4.0 // indirect
+	github.com/hanzoai/orm v0.5.2 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-hclog v1.6.3 // indirect
@@ -112,7 +112,7 @@ require (
 	github.com/luxfi/concurrent v0.0.3 // indirect
 	github.com/luxfi/constants v1.4.7 // indirect
 	github.com/luxfi/container v0.0.4 // indirect
-	github.com/luxfi/corona v0.3.1 // indirect
+	github.com/luxfi/corona v0.4.0 // indirect
 	github.com/luxfi/crypto v1.19.0 // indirect
 	github.com/luxfi/database v1.18.3 // indirect
 	github.com/luxfi/fhe v1.7.7 // indirect
@@ -127,13 +127,12 @@ require (
 	github.com/luxfi/metric v1.5.1 // indirect
 	github.com/luxfi/mock v0.1.1 // indirect
 	github.com/luxfi/sampler v1.0.0 // indirect
-	github.com/luxfi/threshold v1.6.10 // indirect
+	github.com/luxfi/threshold v1.6.12 // indirect
 	github.com/luxfi/utils v1.1.4 // indirect
 	github.com/luxfi/zap v0.2.0 // indirect
 	github.com/luxfi/zapdb v1.9.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/mattn/go-sqlite3 v2.0.3+incompatible // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/miekg/dns v1.1.72 // indirect
 	github.com/miekg/pkcs11 v1.1.1 // indirect
@@ -206,10 +205,10 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	modernc.org/libc v1.70.0 // indirect
+	modernc.org/libc v1.72.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
-	modernc.org/sqlite v1.48.0 // indirect
+	modernc.org/sqlite v1.50.0 // indirect
 )
 
 // Local development: point at sibling lux/mpc checkout. CI overrides with
