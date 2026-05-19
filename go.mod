@@ -18,7 +18,7 @@ require (
 	github.com/hanzoai/base v0.39.1
 	github.com/hashicorp/consul/api v1.33.7
 	github.com/luxfi/hsm v1.1.3
-	github.com/luxfi/mpc v0.0.0-00010101000000-000000000000
+	github.com/luxfi/mpc v1.14.11-0.20260517012734-8c001a3c7aab
 	github.com/mr-tron/base58 v1.2.0
 	github.com/nats-io/nats.go v1.50.0
 	github.com/spf13/viper v1.21.0
@@ -210,10 +210,6 @@ require (
 	modernc.org/memory v1.11.0 // indirect
 	modernc.org/sqlite v1.50.0 // indirect
 )
-
-// Local development: point at sibling lux/mpc checkout. CI overrides with
-// the published version via GOPROXY.
-replace github.com/luxfi/mpc => ../../lux/mpc
 
 // Mirror canonical replace from luxfi/mpc for transitive correctness:
 // the upstream agl/ed25519 module path was abandoned; luxfi maintains a
