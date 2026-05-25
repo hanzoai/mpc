@@ -647,7 +647,7 @@ func runNodeConsensus(ctx context.Context, c *cli.Command) error {
 					resp["ecdsa_pub_key"] = hex.EncodeToString(result.ECDSAPubKey)
 					resp["eddsa_pub_key"] = hex.EncodeToString(result.EDDSAPubKey)
 					if len(result.ECDSAPubKey) >= 32 {
-						resp["eth_address"] = pubKeyToEthAddress(result.ECDSAPubKey)
+						resp["evm_address"] = pubKeyToEVMAddress(result.ECDSAPubKey)
 						resp["btc_address"] = pubKeyToBtcAddress(result.ECDSAPubKey)
 					}
 					if len(result.EDDSAPubKey) == 32 {
@@ -830,11 +830,11 @@ func (b *ConsensusMPCBackend) TriggerKeygen(orgID, walletID string) (*mpcapi.Key
 		if result.ResultType != event.ResultTypeSuccess {
 			return nil, fmt.Errorf("keygen failed: %s", result.ErrorReason)
 		}
-		ethAddr := ""
+		evmAddr := ""
 		btcAddr := ""
 		solAddr := ""
 		if len(result.ECDSAPubKey) >= 32 {
-			ethAddr = pubKeyToEthAddress(result.ECDSAPubKey)
+			evmAddr = pubKeyToEVMAddress(result.ECDSAPubKey)
 			btcAddr = pubKeyToBtcAddress(result.ECDSAPubKey)
 		}
 		if len(result.EDDSAPubKey) == 32 {
@@ -844,7 +844,7 @@ func (b *ConsensusMPCBackend) TriggerKeygen(orgID, walletID string) (*mpcapi.Key
 			WalletID:    result.WalletID,
 			ECDSAPubKey: hex.EncodeToString(result.ECDSAPubKey),
 			EDDSAPubKey: hex.EncodeToString(result.EDDSAPubKey),
-			EthAddress:  ethAddr,
+			EVMAddress:  evmAddr,
 			BtcAddress:  btcAddr,
 			SolAddress:  solAddr,
 		}, nil
@@ -1275,9 +1275,9 @@ func (q *ConsensusMessageQueue) Close() {
 	// Nothing to close in consensus mode
 }
 
-// pubKeyToEthAddress derives an Ethereum address from an ECDSA public key.
+// pubKeyToEVMAddress derives an Ethereum address from an ECDSA public key.
 // Accepts compressed (33 bytes), uncompressed (65 bytes), or raw x-coordinate (32 bytes).
-func pubKeyToEthAddress(pubKey []byte) string {
+func pubKeyToEVMAddress(pubKey []byte) string {
 	var xyBytes []byte // 64 bytes: X(32) || Y(32)
 	switch len(pubKey) {
 	case 65:
@@ -1313,7 +1313,7 @@ func pubKeyToEthAddress(pubKey []byte) string {
 		// Try as hex string
 		decoded, err := hex.DecodeString(string(pubKey))
 		if err == nil && len(decoded) > 0 {
-			return pubKeyToEthAddress(decoded)
+			return pubKeyToEVMAddress(decoded)
 		}
 		return ""
 	}
