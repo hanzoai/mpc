@@ -42,6 +42,7 @@ require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.31.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.54.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.54.0 // indirect
+	github.com/ProjectZKM/Ziren/crates/go-runtime/zkvm_runtime v0.0.0-20260311194731-d5b7577c683d // indirect
 	github.com/agl/ed25519 v0.0.0-20200225211852-fd4d107ace12 // indirect
 	github.com/andybalholm/brotli v1.2.1 // indirect
 	github.com/ansel1/merry v1.8.1 // indirect
@@ -126,7 +127,7 @@ require (
 	github.com/klauspost/compress v1.18.5 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/klauspost/crc32 v1.3.0 // indirect
-	github.com/luxfi/accel v1.1.4 // indirect
+	github.com/luxfi/accel v1.0.7 // indirect
 	github.com/luxfi/age v1.5.0 // indirect
 	github.com/luxfi/atomic v1.0.0 // indirect
 	github.com/luxfi/cache v1.2.1 // indirect
@@ -136,22 +137,21 @@ require (
 	github.com/luxfi/consensus v1.22.85 // indirect
 	github.com/luxfi/constants v1.5.0 // indirect
 	github.com/luxfi/container v0.0.4 // indirect
-	github.com/luxfi/corona v0.7.5 // indirect
-	github.com/luxfi/crypto v1.19.16 // indirect
+	github.com/luxfi/corona v0.4.0 // indirect
+	github.com/luxfi/crypto v1.19.0 // indirect
 	github.com/luxfi/crypto/ipa v1.2.4 // indirect
 	github.com/luxfi/database v1.18.3 // indirect
-	github.com/luxfi/fhe v1.8.2 // indirect
-	github.com/luxfi/geth v1.16.98 // indirect
+	github.com/luxfi/fhe v1.7.9 // indirect
+	github.com/luxfi/geth v1.16.79 // indirect
 	github.com/luxfi/ids v1.2.9 // indirect
 	github.com/luxfi/lattice/v7 v7.1.0 // indirect
-	github.com/luxfi/lens v0.1.4 // indirect
+	github.com/luxfi/lens v0.1.3 // indirect
 	github.com/luxfi/log v1.4.3 // indirect
-	github.com/luxfi/math v1.4.1 // indirect
+	github.com/luxfi/math v1.4.0 // indirect
 	github.com/luxfi/math/big v0.1.0 // indirect
 	github.com/luxfi/mdns v0.1.0 // indirect
 	github.com/luxfi/metric v1.5.7 // indirect
 	github.com/luxfi/mock v0.1.1 // indirect
-	github.com/luxfi/pq v1.0.3 // indirect
 	github.com/luxfi/corona v0.2.0 // indirect
 	github.com/luxfi/sampler v1.0.0 // indirect
 	github.com/luxfi/threshold v1.8.6 // indirect
