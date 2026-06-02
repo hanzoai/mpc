@@ -1,0 +1,123 @@
+# Hanzo MPC — native consensus daemon. One Go binary, embedded UI shell.
+# Routing: mpc.hanzo.ai (UI + REST) — see ingress.yaml.
+# Auth: hanzo.id IAM JWT, validated upstream by hanzoai/gateway.
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mpc
+  namespace: hanzo
+  labels:
+    app: mpc
+    app.kubernetes.io/name: mpc
+    app.kubernetes.io/part-of: hanzo-platform
+    app.kubernetes.io/managed-by: hanzo-universe
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: mpc
+  template:
+    metadata:
+      labels:
+        app: mpc
+        app.kubernetes.io/name: mpc
+        app.kubernetes.io/part-of: hanzo-platform
+        app.kubernetes.io/managed-by: hanzo-universe
+    spec:
+      imagePullSecrets:
+        - name: ghcr-secret
+      containers:
+        - name: mpc
+          image: ghcr.io/hanzoai/mpc:v2.50.0
+          imagePullPolicy: IfNotPresent
+          # No --zap-port flag in non-consensus mode. The thin Embed
+          # path (default for mpcd) does not bind a P2P listener; the
+          # full luxfi/mpc consensus runtime lives behind the
+          # `mpcd consensus start` subcommand and is not what this
+          # Deployment runs. Exposing 9999 here was a closed-port
+          # fingerprint vector — see ~/work/hanzo/mpc/k8s/consensus.yaml
+          # (opt-in) for the consensus-mode StatefulSet.
+          args:
+            - --http=:8081
+            - --data=/data
+            - --node-id=$(MPCD_NODE_ID)
+          ports:
+            - containerPort: 8081
+              name: http
+          env:
+            - name: MPCD_NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            # Trust X-Org-Id/X-User-Id/X-User-Email from hanzoai/gateway
+            # only. Gateway strips client-supplied identity headers before
+            # forwarding (see global CLAUDE.md HTTP header convention).
+            - name: MPCD_REQUIRE_IDENTITY
+              value: "true"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector.hanzo.svc:4318
+            - name: OTEL_SERVICE_NAME
+              value: mpc
+            - name: LOG_LEVEL
+              value: info
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          startupProbe:
+            httpGet: { path: /healthz, port: 8081 }
+            initialDelaySeconds: 2
+            periodSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8081 }
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8081 }
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: mpc-data
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mpc-data
+  namespace: hanzo
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mpc
+  namespace: hanzo
+spec:
+  selector:
+    app: mpc
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8081
