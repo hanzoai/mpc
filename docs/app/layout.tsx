@@ -17,10 +17,23 @@ const interMono = Inter({
 
 export const metadata = {
   title: {
-    default: "Lux MPC - Threshold Signature Documentation",
-    template: "%s | Lux MPC",
+    default: "Hanzo MPC - Threshold Signature Documentation",
+    template: "%s | Hanzo MPC",
   },
   description: "Multi-Party Computation for threshold signatures - ECDSA, EdDSA, and Taproot",
+  openGraph: {
+    title: "Hanzo MPC",
+    description: "Multi-Party Computation for threshold signatures",
+    url: "https://mpc.hanzo.ai",
+    siteName: "Hanzo MPC",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Hanzo MPC",
+    description: "Multi-Party Computation for threshold signatures",
+    creator: "@hanzoai",
+  },
 }
 
 export default function Layout({ children }: { children: ReactNode }) {
