@@ -863,7 +863,7 @@ func (b *ConsensusMPCBackend) TriggerKeygen(orgID, walletID string) (*mpcapi.Key
 			WalletID:    result.WalletID,
 			ECDSAPubKey: hex.EncodeToString(result.ECDSAPubKey),
 			EDDSAPubKey: hex.EncodeToString(result.EDDSAPubKey),
-			EthAddress:  ethAddr,
+			EVMAddress:  ethAddr,
 			BtcAddress:  btcAddr,
 			SolAddress:  solAddr,
 		}, nil
@@ -1207,6 +1207,17 @@ func (r *ConsensusPeerRegistry) ArePeersReady() bool {
 
 func (r *ConsensusPeerRegistry) GetReadyPeersCount() int64 {
 	return r.registry.GetReadyPeersCount()
+}
+
+// HasSigningQuorum returns true when ready peers (including self) are
+// sufficient to form a t-of-n signing quorum. `threshold` uses the
+// operator-facing "signers required" semantics (2 for 2-of-3, 3 for 3-of-5).
+func (r *ConsensusPeerRegistry) HasSigningQuorum(threshold int) bool {
+	ready := r.registry.GetReadyPeersCount()
+	if threshold <= 0 {
+		return ready >= 1
+	}
+	return ready >= int64(threshold)
 }
 
 func (r *ConsensusPeerRegistry) GetTotalPeersCount() int64 {
