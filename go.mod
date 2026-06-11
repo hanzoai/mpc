@@ -18,7 +18,7 @@ require (
 	github.com/hanzoai/base v1.3.0
 	github.com/hashicorp/consul/api v1.33.7
 	github.com/luxfi/hsm v1.1.3
-	github.com/luxfi/mpc v0.0.0-00010101000000-000000000000
+	github.com/luxfi/mpc v1.14.13
 	github.com/mr-tron/base58 v1.2.0
 	github.com/nats-io/nats.go v1.50.0
 	github.com/spf13/viper v1.21.0
@@ -42,8 +42,8 @@ require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.31.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.54.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.54.0 // indirect
-	github.com/ProjectZKM/Ziren/crates/go-runtime/zkvm_runtime v0.0.0-20260311194731-d5b7577c683d // indirect
 	github.com/agl/ed25519 v0.0.0-20200225211852-fd4d107ace12 // indirect
+	github.com/andybalholm/brotli v1.2.1 // indirect
 	github.com/ansel1/merry v1.8.1 // indirect
 	github.com/ansel1/merry/v2 v2.2.2 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
@@ -94,6 +94,9 @@ require (
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/go-sev-guest v0.14.1 // indirect
 	github.com/google/logger v1.1.1 // indirect
+	github.com/google/s2a-go v0.1.9 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.3.14 // indirect
+	github.com/googleapis/gax-go/v2 v2.21.0 // indirect
 	github.com/gorilla/rpc v1.2.1 // indirect
 	github.com/grandcat/zeroconf v1.0.0 // indirect
 	github.com/gtank/merlin v0.1.1 // indirect
@@ -123,8 +126,8 @@ require (
 	github.com/klauspost/compress v1.18.5 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/klauspost/crc32 v1.3.0 // indirect
-	github.com/luxfi/accel v1.0.7 // indirect
-	github.com/luxfi/age v1.4.0 // indirect
+	github.com/luxfi/accel v1.1.2 // indirect
+	github.com/luxfi/age v1.5.0 // indirect
 	github.com/luxfi/atomic v1.0.0 // indirect
 	github.com/luxfi/cache v1.2.1 // indirect
 	github.com/luxfi/codec v1.1.4 // indirect
@@ -133,29 +136,30 @@ require (
 	github.com/luxfi/consensus v1.22.85 // indirect
 	github.com/luxfi/constants v1.5.0 // indirect
 	github.com/luxfi/container v0.0.4 // indirect
-	github.com/luxfi/corona v0.3.1 // indirect
-	github.com/luxfi/crypto v1.19.0 // indirect
+	github.com/luxfi/corona v0.4.1 // indirect
+	github.com/luxfi/crypto v1.19.10 // indirect
+	github.com/luxfi/crypto/ipa v1.2.4 // indirect
 	github.com/luxfi/database v1.18.3 // indirect
-	github.com/luxfi/fhe v1.7.7 // indirect
+	github.com/luxfi/fhe v1.8.2 // indirect
 	github.com/luxfi/geth v1.16.79 // indirect
 	github.com/luxfi/ids v1.2.9 // indirect
 	github.com/luxfi/lattice/v7 v7.1.0 // indirect
-	github.com/luxfi/lens v0.1.3 // indirect
-	github.com/luxfi/log v1.4.1 // indirect
-	github.com/luxfi/math v1.4.0 // indirect
+	github.com/luxfi/lens v0.1.4 // indirect
+	github.com/luxfi/log v1.4.3 // indirect
+	github.com/luxfi/math v1.4.1 // indirect
 	github.com/luxfi/math/big v0.1.0 // indirect
 	github.com/luxfi/mdns v0.1.0 // indirect
 	github.com/luxfi/metric v1.5.7 // indirect
 	github.com/luxfi/mock v0.1.1 // indirect
+	github.com/luxfi/pq v1.0.3 // indirect
 	github.com/luxfi/corona v0.2.0 // indirect
 	github.com/luxfi/sampler v1.0.0 // indirect
-	github.com/luxfi/threshold v1.6.10 // indirect
+	github.com/luxfi/threshold v1.8.2 // indirect
 	github.com/luxfi/utils v1.1.4 // indirect
-	github.com/luxfi/zap v0.2.0 // indirect
+	github.com/luxfi/zap v0.3.1 // indirect
 	github.com/luxfi/zapdb v1.9.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
-	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/mattn/go-sqlite3 v2.0.3+incompatible // indirect
+	github.com/mattn/go-isatty v0.0.21 // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/miekg/dns v1.1.72 // indirect
 	github.com/miekg/pkcs11 v1.1.1 // indirect
@@ -164,7 +168,7 @@ require (
 	github.com/minio/md5-simd v1.1.2 // indirect
 	github.com/minio/minio-go/v7 v7.0.100 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
-	github.com/mitchellh/mapstructure v1.5.0 // indirect
+	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
 	github.com/montanaflynn/stats v0.9.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/nats-io/nkeys v0.4.15 // indirect
