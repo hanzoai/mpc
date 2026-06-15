@@ -10,7 +10,7 @@ module github.com/hanzoai/mpc
 // All packages from pkg/* have been removed in favor of the canonical
 // github.com/luxfi/mpc/pkg/* upstream.
 
-go 1.26.3
+go 1.26.4
 
 require (
 	filippo.io/age v1.3.1
@@ -23,8 +23,8 @@ require (
 	github.com/nats-io/nats.go v1.50.0
 	github.com/spf13/viper v1.21.0
 	github.com/urfave/cli/v3 v3.8.0
-	golang.org/x/crypto v0.50.0
-	golang.org/x/term v0.42.0
+	golang.org/x/crypto v0.52.0
+	golang.org/x/term v0.43.0
 )
 
 require (
@@ -126,38 +126,39 @@ require (
 	github.com/klauspost/compress v1.18.5 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/klauspost/crc32 v1.3.0 // indirect
-	github.com/luxfi/accel v1.1.2 // indirect
+	github.com/luxfi/accel v1.2.2 // indirect
 	github.com/luxfi/age v1.5.0 // indirect
 	github.com/luxfi/atomic v1.0.0 // indirect
 	github.com/luxfi/cache v1.2.1 // indirect
 	github.com/luxfi/codec v1.1.4 // indirect
 	github.com/luxfi/compress v0.0.5 // indirect
 	github.com/luxfi/concurrent v0.0.3 // indirect
-	github.com/luxfi/consensus v1.22.85 // indirect
-	github.com/luxfi/constants v1.5.0 // indirect
+	github.com/luxfi/consensus v1.25.17 // indirect
+	github.com/luxfi/constants v1.5.8 // indirect
 	github.com/luxfi/container v0.0.4 // indirect
-	github.com/luxfi/corona v0.4.1 // indirect
-	github.com/luxfi/crypto v1.19.10 // indirect
+	github.com/luxfi/corona v0.7.6 // indirect
+	github.com/luxfi/crypto v1.19.17 // indirect
 	github.com/luxfi/crypto/ipa v1.2.4 // indirect
 	github.com/luxfi/database v1.18.3 // indirect
 	github.com/luxfi/fhe v1.8.2 // indirect
-	github.com/luxfi/geth v1.16.79 // indirect
-	github.com/luxfi/ids v1.2.9 // indirect
-	github.com/luxfi/lattice/v7 v7.1.0 // indirect
+	github.com/luxfi/geth v1.16.98 // indirect
+	github.com/luxfi/ids v1.2.10 // indirect
+	github.com/luxfi/lattice/v7 v7.1.4 // indirect
 	github.com/luxfi/lens v0.1.4 // indirect
 	github.com/luxfi/log v1.4.3 // indirect
+	github.com/luxfi/magnetar v1.2.0 // indirect
 	github.com/luxfi/math v1.4.1 // indirect
 	github.com/luxfi/math/big v0.1.0 // indirect
-	github.com/luxfi/mdns v0.1.0 // indirect
+	github.com/luxfi/mdns v0.1.1 // indirect
 	github.com/luxfi/metric v1.5.7 // indirect
 	github.com/luxfi/mock v0.1.1 // indirect
 	github.com/luxfi/pq v1.0.3 // indirect
-	github.com/luxfi/corona v0.2.0 // indirect
-	github.com/luxfi/sampler v1.0.0 // indirect
-	github.com/luxfi/threshold v1.8.2 // indirect
-	github.com/luxfi/utils v1.1.4 // indirect
-	github.com/luxfi/zap v0.3.1 // indirect
-	github.com/luxfi/zapdb v1.9.0 // indirect
+	github.com/luxfi/pulsar v1.1.1 // indirect
+	github.com/luxfi/sampler v1.1.0 // indirect
+	github.com/luxfi/threshold v1.9.9 // indirect
+	github.com/luxfi/utils v1.1.5 // indirect
+	github.com/luxfi/zap v0.7.2 // indirect
+	github.com/luxfi/zapdb v1.10.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.21 // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
@@ -220,14 +221,14 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/exp v0.0.0-20260312153236-7ab1446f8b90 // indirect
 	golang.org/x/image v0.38.0 // indirect
-	golang.org/x/mod v0.34.0 // indirect
-	golang.org/x/net v0.53.0 // indirect
+	golang.org/x/mod v0.36.0 // indirect
+	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/sys v0.43.0 // indirect
-	golang.org/x/text v0.36.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
-	golang.org/x/tools v0.43.0 // indirect
+	golang.org/x/tools v0.45.0 // indirect
 	gonum.org/v1/gonum v0.17.0 // indirect
 	google.golang.org/api v0.275.0 // indirect
 	google.golang.org/genproto v0.0.0-20260406210006-6f92a3bedf2d // indirect
