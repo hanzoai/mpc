@@ -1,3 +1,5 @@
+<p align="center"><img src=".github/hero.svg" alt="mpc" width="880"></p>
+
 <div class="title-block" style="text-align: center;" align="center">
 
 # Lux MPC: Resilient MPC (Multi-Party Computation) Nodes for Distributed Crypto Wallet Generation
