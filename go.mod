@@ -151,7 +151,7 @@ require (
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/klauspost/crc32 v1.3.0 // indirect
 	github.com/luxfi/accel v1.2.2 // indirect
-	github.com/luxfi/age v1.5.0 // indirect
+	github.com/luxfi/age v1.5.1 // indirect
 	github.com/luxfi/cache v1.2.1 // indirect
 	github.com/luxfi/compress v0.0.5 // indirect
 	github.com/luxfi/concurrent v0.0.3 // indirect
