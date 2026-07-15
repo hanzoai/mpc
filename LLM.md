@@ -10,6 +10,30 @@ Threshold signing service. Pluggable signer backend for Hanzo KMS.
 - **LSS**: Dynamic resharing (change T-of-N without key reconstruction)
 - Threshold: default t = floor(n/2) + 1
 
+## Deployment status (2026-07-15) — GENUINE t-of-n threshold PROVEN
+
+- **hanzo-mpc** (do-sfo3-hanzo-k8s, ns hanzo-mpc, 3 nodes): **ghcr.io/hanzoai/mpc:1.17.12**.
+  Sovereign image now WRAPS `ghcr.io/luxfi/mpc:v1.17.12` (luxfi/mpc is a private repo,
+  so the old source-build `git clone` fails in the ARC buildkit sandbox — zoo-style
+  image-wrap is the fix). The in-repo `cmd/mpcd` carries the same threshold fix for
+  local-dev parity but is not what ships.
+- **CRITICAL fix live**: `--threshold` now sets the CGGMP21 keygen polynomial degree
+  (was silently degree 0 = 1-of-n). Startup log confirms `keygenDegree=1 signersRequired=2`
+  for hanzo's `--threshold=2` → **genuine 2-of-3** (degree = threshold-1). Pre-fix, every
+  hanzo wallet (incl. hanzo-dao) was keyed at degree 0 — a single node could forge a sig.
+- **PROOF (fresh wallet `hanzo-threshold-proof-v1`, EVM 0xfcdb945bc51aeac746b209f379f5f2f94249153b,
+  pubkey 030d61780ff5a35e2a901f4a21d8c268087b1d7d8c6c66f75fe9e4b3d1466c9f8d)**:
+  ring keyed it at `threshold=1` on all 3 nodes; a real 3-party sign produced an ECDSA
+  signature that VERIFIES against the pubkey (digest 152f8560…); a 1-of-3 subset is
+  refused (node CreateSignSession `len<Threshold+1`, and cmp `CanSign→ValidThreshold(1,1)=false`).
+  General property pinned by luxfi/threshold `protocols/cmp/degree2_proof_test.go`.
+- Existing pre-fix wallets keep their degree-0 keys (and addresses) until re-keyed —
+  re-keying is a per-wallet migration (changes the address), NOT done by the image roll.
+- **hanzo/kms** (ns hanzo): `ghcr.io/luxfi/kms:1.11.9`, NO master key, NO MPC-backing.
+  Safe to upgrade to v1.12.3 (no REK → the /v1/sdk consensus authorizer never fires, no
+  fail-closed blocker); enable MPC-backing with MPC_VAULT_ID=hanzo + MPC_ADDR=…hanzo-mpc…:9653.
+  STAGED (not rolled) — coordinate with the KMS workstream.
+
 ## Architecture
 
 ```
