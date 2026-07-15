@@ -320,6 +320,18 @@ func StartPeriodicBackup(ctx context.Context, zapKV *kvstore.Store, periodSecond
 	return backupCancel
 }
 
+// keygenDegreeForThreshold maps the operator-facing --threshold (the number of
+// signers required, N in "N-of-M") to the CGGMP21 polynomial degree fed to
+// cmp.Keygen (which needs degree+1 signers). degree = threshold-1, floored at
+// 0. Mirrors luxfi/mpc cmd/mpcd fix 1e1d318 — keeps the security-critical
+// off-by-one explicit.
+func keygenDegreeForThreshold(threshold int) int {
+	if threshold < 1 {
+		return 0
+	}
+	return threshold - 1
+}
+
 // runNodeConsensus runs the MPC node with consensus-embedded transport
 func runNodeConsensus(ctx context.Context, c *cli.Command) error {
 	nodeID := c.String("node-id")
@@ -330,6 +342,18 @@ func runNodeConsensus(ctx context.Context, c *cli.Command) error {
 	peers := c.StringSlice("peer")
 	logLevel := c.String("log-level")
 	debug := c.Bool("debug")
+
+	// --threshold is the number of signers required; it drives the
+	// HasSigningQuorum health gate. The CGGMP21 keygen polynomial DEGREE,
+	// however, is read separately from viper key "mpc_threshold"
+	// (pkg/eventconsumer.NewEventConsumer -> CreateKeyGenSession ->
+	// cmp.Keygen). NOTHING wired the flag into that key, so
+	// viper.GetInt("mpc_threshold") was always 0 -> every wallet was keyed at
+	// degree 0 = 1-of-n: NO threshold security, a single share signs. Bridge
+	// them here: degree = threshold-1 (threshold=2 -> degree 1 -> 2-of-3).
+	// viper.Set wins without a config file. Mirrors luxfi/mpc fix 1e1d318.
+	keygenDegree := keygenDegreeForThreshold(threshold)
+	viper.Set("mpc_threshold", keygenDegree)
 
 	if nodeID == "" {
 		return fmt.Errorf("--node-id is required in consensus mode")
@@ -344,7 +368,8 @@ func runNodeConsensus(ctx context.Context, c *cli.Command) error {
 		"nodeID", nodeID,
 		"listen", listenAddr,
 		"dataDir", dataDir,
-		"threshold", threshold,
+		"signersRequired", threshold,
+		"keygenDegree", keygenDegree,
 		"peers", len(peers),
 	)
 
