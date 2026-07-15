@@ -18,6 +18,6 @@
 #
 # The in-repo cmd/mpcd source (Hanzo-branded mirror of luxfi cmd/mpcd, incl. the
 # same threshold fix) is retained for local dev / parity; it is NOT what ships.
-FROM ghcr.io/luxfi/mpc:1.17.12
+FROM ghcr.io/luxfi/mpc:v1.17.12
 LABEL org.opencontainers.image.source="https://github.com/hanzoai/mpc"
 ENV MPC_ORG=hanzo
