@@ -36,7 +36,7 @@ type EmbedConfig struct {
 	ZAPPort         int          // 0 → 9999 (P2P consensus listener)
 	NodeID          string       // required: node identity, e.g. "mpcd-0"
 	IAMEndpoint     string       // "" → "https://hanzo.id" (advisory; gateway validates JWTs)
-	JWTKeySource    string       // "" → "https://hanzo.id/.well-known/jwks" (advisory)
+	JWTKeySource    string       // "" → "https://hanzo.id/v1/iam/.well-known/jwks" (advisory)
 	Logger          *slog.Logger // nil → slog.Default()
 	ShutdownTimeout context.Context
 }
@@ -78,7 +78,7 @@ func Embed(ctx context.Context, cfg EmbedConfig) (*Embedded, error) {
 		cfg.IAMEndpoint = "https://hanzo.id"
 	}
 	if cfg.JWTKeySource == "" {
-		cfg.JWTKeySource = "https://hanzo.id/.well-known/jwks"
+		cfg.JWTKeySource = "https://hanzo.id/v1/iam/.well-known/jwks"
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
