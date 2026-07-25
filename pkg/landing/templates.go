@@ -352,7 +352,7 @@ async function startLogin() {
     code_challenge_method: 'S256',
     state: state,
   });
-  location.href = IAM_URL + '/oauth/authorize?' + params;
+  location.href = IAM_URL + '/v1/iam/oauth/authorize?' + params;
 }
 // Check if already logged in
 if (localStorage.getItem('mpc_token')) {
@@ -426,7 +426,7 @@ async function handleCallback() {
     });
     if (verifier) body.set('code_verifier', verifier);
 
-    const resp = await fetch(IAM_URL + '/oauth/token', {
+    const resp = await fetch(IAM_URL + '/v1/iam/oauth/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
       body: body,
@@ -594,7 +594,7 @@ document.getElementById('token-text').textContent = token ? (token.substring(0, 
 async function loadUser() {
   if (!IAM_URL) return;
   try {
-    const resp = await fetch(IAM_URL + '/api/userinfo', { headers: { 'Authorization': 'Bearer ' + token } });
+    const resp = await fetch(IAM_URL + '/v1/iam/oauth/userinfo', { headers: { 'Authorization': 'Bearer ' + token } });
     if (resp.ok) {
       const user = await resp.json();
       document.getElementById('u-name').textContent = user.displayName || user.name || '—';
