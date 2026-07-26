@@ -127,12 +127,12 @@ require (
 	github.com/gtank/ristretto255 v0.2.0 // indirect
 	github.com/hanzoai/cloud v0.1.0 // indirect
 	github.com/hanzoai/dbx v1.16.0 // indirect
-	github.com/hanzoai/kv-go/v9 v9.18.0 // indirect
 	github.com/hanzoai/orm v0.5.2 // indirect
 	github.com/hanzoai/pubsub-go v1.0.0 // indirect
 	github.com/hanzoai/tasks v1.40.0 // indirect
 	github.com/hanzoai/vfs v0.4.1 // indirect
-	github.com/hanzoai/zip v0.2.2 // indirect
+	github.com/hanzoai/zip v0.2.0 // indirect
+	github.com/hanzokv/go/v9 v9.21.1
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-hclog v1.6.3 // indirect
@@ -221,7 +221,10 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.70.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
+	github.com/zap-proto/fiber/v3 v3.2.1 // indirect
 	github.com/zap-proto/go v1.3.0 // indirect
+	github.com/zap-proto/http v0.2.0 // indirect
+	github.com/zap-proto/zip v1.6.0 // indirect
 	github.com/zeebo/blake3 v0.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.39.0 // indirect
