@@ -12,8 +12,8 @@ Threshold signing service. Pluggable signer backend for Hanzo KMS.
 
 ## Deployment status (2026-07-15) — GENUINE t-of-n threshold PROVEN
 
-- **hanzo-mpc** (do-sfo3-hanzo-k8s, ns hanzo-mpc, 3 nodes): **ghcr.io/hanzoai/mpc:1.17.12**.
-  Sovereign image now WRAPS `ghcr.io/luxfi/mpc:v1.17.12` (luxfi/mpc is a private repo,
+- **hanzo-mpc** (do-sfo3-hanzo-k8s, ns hanzo-mpc, 3 nodes): **ghcr.io/hanzoai/mpc:1.17.15**.
+  Sovereign image now WRAPS `ghcr.io/luxfi/mpc:v1.17.15` (luxfi/mpc is a private repo,
   so the old source-build `git clone` fails in the ARC buildkit sandbox — zoo-style
   image-wrap is the fix). The in-repo `cmd/mpcd` carries the same threshold fix for
   local-dev parity but is not what ships.

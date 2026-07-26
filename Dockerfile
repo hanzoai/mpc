@@ -2,8 +2,8 @@
 #
 # Hanzo MPC — sovereign wrapper over the canonical luxfi/mpc binary.
 #
-# Sovereign version tag MIRRORS the wrapped upstream: hanzoai/mpc:1.17.12 ==
-# luxfi/mpc:1.17.12, which carries the CGGMP21 keygen-degree fix (luxfi/mpc
+# Sovereign version tag MIRRORS the wrapped upstream: hanzoai/mpc:1.17.15 ==
+# luxfi/mpc:1.17.15, which carries the CGGMP21 keygen-degree fix (luxfi/mpc
 # 1e1d318): runNodeConsensus now wires --threshold into viper "mpc_threshold"
 # so the keygen polynomial degree = threshold-1. hanzo-mpc runs --threshold=2 →
 # degree 1 → genuine 2-of-3 (was degree 0 = 1-of-3: any single node could sign).
@@ -18,6 +18,6 @@
 #
 # The in-repo cmd/mpcd source (Hanzo-branded mirror of luxfi cmd/mpcd, incl. the
 # same threshold fix) is retained for local dev / parity; it is NOT what ships.
-FROM ghcr.io/luxfi/mpc:v1.17.12
+FROM ghcr.io/luxfi/mpc:v1.17.15
 LABEL org.opencontainers.image.source="https://github.com/hanzoai/mpc"
 ENV MPC_ORG=hanzo

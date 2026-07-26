@@ -1,0 +1,34 @@
+# Build is owned by platform.hanzo.ai, not GitHub Actions. Platform reads this
+# file at the pushed sha, schedules an in-cluster BuildKit Job on our own runner
+# pool, and pushes to GHCR — no GitHub-Actions hop.
+#
+# Why this repo moved: the last image this repo published was 2026-07-15, and
+# only because someone hit workflow_dispatch by hand. Pushes do nothing —
+# Actions is disabled at the account level, so GitHub answers a dispatch with
+# 422 "Actions has been disabled for this user". Same migration luxfi/kms took
+# in efed0f0 and luxfi/operator in 1ba4349.
+#
+# Schema: ~/work/hanzo/platform/docs/PLATFORM_CI.md §hanzo.yml schema reference.
+build:
+  matrix:
+    - { os: linux, arch: amd64 }
+  dockerfile: ./Dockerfile
+  context: .
+  image: ghcr.io/hanzoai/mpc
+  tag-pattern: "{{git.tag}}"
+  push: true
+
+# tag-pattern is {{git.tag}}, not {{git.branch}}, because this image's whole
+# contract is that its version MIRRORS the upstream it wraps: hanzoai/mpc:X ==
+# luxfi/mpc:X (see Dockerfile). A `:main` tag cannot express that, and the
+# hanzo-mpc StatefulSet pins an exact version. {{git.tag}} resolves only on a
+# tag push; branch pushes are skipped and publish nothing, which is correct here
+# — a wrapper has nothing to say between releases.
+#
+# {{git.tag}} needs platform >= hanzoai/platform fdaf99a65. Until that build is
+# rolled out, tag pushes here produce no image.
+#
+# No `deploy:` block. hanzo-mpc is a StatefulSet in ns hanzo-mpc carrying no
+# operator CR, so the deploy leg (which patches .spec.image on an App/Service CR)
+# has no target. Rolling the ring stays an explicit, ordered step — it is a
+# threshold-signing quorum, not a stateless service.
