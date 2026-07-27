@@ -68,7 +68,7 @@ clean-all: clean e2e-clean
 # Run local development environment with Docker
 run-local: build
 	@echo "Starting local MPC environment..."
-	docker-compose up -d
+	docker compose up -d
 	@echo "Waiting for services to be ready..."
 	@sleep 5
 	@echo ""
@@ -82,11 +82,11 @@ run-local: build
 # Stop local environment
 stop-local:
 	@echo "Stopping local MPC environment..."
-	docker-compose down
+	docker compose down
 
 # View logs
 logs:
-	docker-compose logs -f
+	docker compose logs -f
 
 # Run a single MPC node (example)
 run-node0: build

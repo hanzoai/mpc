@@ -8,3 +8,13 @@ data/
 logs/
 *.test
 *.prof
+
+# Secrets / identities — never bake local dev keys into an image.
+identity/
+event_initiator.identity.json
+event_initiator.key
+event_initiator.key.age
+peers.json
+node0/
+node1/
+node2/
