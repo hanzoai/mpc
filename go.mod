@@ -128,7 +128,7 @@ require (
 	github.com/hanzoai/cloud v0.1.0 // indirect
 	github.com/hanzoai/csqlite v0.1.0 // indirect
 	github.com/hanzoai/dbx v1.17.2 // indirect
-	github.com/hanzoai/orm v0.6.14 // indirect
+	github.com/hanzoai/orm v0.6.16 // indirect
 	github.com/hanzoai/pubsub-go v1.0.0 // indirect
 	github.com/hanzoai/sqlcipher v0.1.0 // indirect
 	github.com/hanzoai/sqlite v0.3.2 // indirect
@@ -227,8 +227,7 @@ require (
 	github.com/valyala/fasthttp v1.72.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/zap-proto/go v1.3.0 // indirect
-	github.com/zap-proto/http v0.2.0 // indirect
-	github.com/zap-proto/zip v1.8.3 // indirect
+	github.com/zap-proto/http v0.3.0 // indirect
 	github.com/zeebo/blake3 v0.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.39.0 // indirect
