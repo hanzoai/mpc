@@ -6,8 +6,17 @@ QWEN.md
 bin/
 
 # Build artifacts
-hanzo-mpc
-hanzo-mpc-cli
+mpcd
+mpc
+mpc-bridge
+
+# Secrets / identities — never committed; generated per-deployment, sourced
+# from KMS. Matches luxfi/mpc upstream .gitignore.
+identity/
+event_initiator.identity.json
+event_initiator.key
+event_initiator.key.age
+peers.json
 
 # Node data directories (test/dev only)
 node0/
