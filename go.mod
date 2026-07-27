@@ -127,14 +127,15 @@ require (
 	github.com/hanzoai/builder v0.3.13 // indirect
 	github.com/hanzoai/cloud v0.1.0 // indirect
 	github.com/hanzoai/csqlite v0.1.0 // indirect
-	github.com/hanzoai/dbx v1.16.0 // indirect
-	github.com/hanzoai/orm v0.6.8-0.20260726154525-27ea3760abb3 // indirect
+	github.com/hanzoai/dbx v1.17.2 // indirect
+	github.com/hanzoai/orm v0.6.14 // indirect
 	github.com/hanzoai/pubsub-go v1.0.0 // indirect
 	github.com/hanzoai/sqlcipher v0.1.0 // indirect
 	github.com/hanzoai/sqlite v0.3.2 // indirect
 	github.com/hanzoai/tasks v1.40.0 // indirect
 	github.com/hanzoai/vfs v0.4.1 // indirect
 	github.com/hanzoai/xorm v1.4.4 // indirect
+	github.com/hanzoai/zip v0.2.0 // indirect
 	github.com/hanzokv/go/v9 v9.22.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
@@ -225,7 +226,7 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.72.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	github.com/zap-proto/go v1.1.0 // indirect
+	github.com/zap-proto/go v1.3.0 // indirect
 	github.com/zap-proto/http v0.2.0 // indirect
 	github.com/zap-proto/zip v1.8.3 // indirect
 	github.com/zeebo/blake3 v0.2.4 // indirect
