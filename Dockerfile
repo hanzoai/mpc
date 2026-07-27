@@ -1,66 +1,59 @@
 # syntax=docker/dockerfile:1
 #
-# Hanzo MPC — thin wrapper over luxfi/mpc.
+# Hanzo MPC — thin white-label wrapper over the canonical luxfi/mpc engine.
 #
-# Build context is this repository's root (single-repo checkout). The
-# canonical reusable workflow `hanzoai/.github/.github/workflows/docker-build.yml`
-# uses `context: .` and a single `actions/checkout@v4`, so the
-# `replace github.com/luxfi/mpc => ../../lux/mpc` directive in go.mod is
-# satisfied by cloning luxfi/mpc inside the builder at the relative path
-# the directive expects.
+# The wrapper imports github.com/luxfi/mpc as a normal versioned module
+# (pinned in go.mod), so there is exactly one source of the upstream
+# version: bump it with `go get github.com/luxfi/mpc@vX.Y.Z`. No sibling
+# checkout, no build-arg ref — the module graph is the single source of truth.
+#
+# Built and pushed as ghcr.io/hanzoai/mpc by the canonical reusable workflow
+# hanzoai/.github/.github/workflows/docker-build.yml (context: ., single
+# actions/checkout). The default (no-tag) build ships the daemon + CLI; the
+# admin dashboard lives upstream and is opt-in via `-tags embedui`.
 
 FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS builder
 
 ARG TARGETARCH
 ARG TARGETOS=linux
-# Pin to a luxfi/mpc commit/branch. Override via --build-arg LUXFI_MPC_REF=...
-# (e.g. a specific tag) when a reproducible build is needed.
-ARG LUXFI_MPC_REF=v1.14.10
 
-RUN apk add --no-cache git make
+RUN apk add --no-cache git
 
-WORKDIR /build
+WORKDIR /src
 
-# Materialize the two-checkout layout the relative `replace` directive
-# in go.mod expects: hanzo/mpc and lux/mpc as siblings under /build.
-COPY . /build/hanzo/mpc
+# luxfi modules resolve direct from the GitHub origin: tags have been
+# force-pushed upstream in the past (notably edwards25519@v0.1.0), so the
+# public sumdb may serve a stale entry. Matches luxfi/mpc's own CI knobs.
+ENV GOPRIVATE=github.com/luxfi/*,github.com/hanzoai/*
+ENV GOFLAGS=-mod=mod
 
-RUN git clone --depth=1 --branch="${LUXFI_MPC_REF}" \
-      https://github.com/luxfi/mpc.git /build/lux/mpc
-
-WORKDIR /build/hanzo/mpc
-
-# luxfi packages bypass proxy.golang.org + sum.golang.org because tags have
-# been force-pushed in the past (notably edwards25519@v0.1.0). The canonical
-# hash lives at the GitHub origin; the public sumdb may serve a stale cached
-# entry. Matches luxfi/mpc's own CI knobs.
-ENV GOPRIVATE=github.com/luxfi/*
-ENV GOPROXY=https://proxy.golang.org,direct
-
+COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
 
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
-    go build -ldflags="-s -w" -o mpcd ./cmd/mpcd
+COPY . .
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
-    go build -ldflags="-s -w" -o mpc ./cmd/mpc
+    go build -trimpath -ldflags="-s -w" -o mpcd ./cmd/mpcd
+
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+    go build -trimpath -ldflags="-s -w" -o mpc ./cmd/mpc
 
 # Runtime stage
-FROM alpine:latest
+FROM alpine:3.21
 
 LABEL org.opencontainers.image.source="https://github.com/hanzoai/mpc"
 
-RUN apk add --no-cache ca-certificates curl bash
+RUN apk add --no-cache ca-certificates curl bash tzdata
 
 WORKDIR /app
 
-COPY --from=builder /build/hanzo/mpc/mpcd /usr/local/bin/
-COPY --from=builder /build/hanzo/mpc/mpc  /usr/local/bin/
+COPY --from=builder /src/mpcd /usr/local/bin/
+COPY --from=builder /src/mpc  /usr/local/bin/
 
 # Config templates from the hanzo/mpc checkout.
 COPY config.yaml.template      /app/
