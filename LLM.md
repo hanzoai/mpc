@@ -23,24 +23,28 @@ KMS (Control Plane): Policy, Approvals, Audit, Key Registry, Unified Signing API
 
 ## Project Structure
 
+`hanzoai/mpc` is a **thin white-label fork of `luxfi/mpc`**: same engine,
+consumed as a versioned Go module. All MPC logic (TSS CGGMP21/FROST/LSS,
+ZapDB KV, NATS messaging, identity, policy, threshold, storage, backup,
+eventconsumer) lives upstream in `github.com/luxfi/mpc/pkg/*`. This repo
+carries ONLY the Hanzo entrypoints + branding:
+
 ```
 mpc/
-  cmd/mpcd/       Main node binary
-  cmd/mpc/   CLI tools
-  pkg/
-    mpc/               TSS implementation (CGGMP21, FROST, LSS)
-    kvstore/           BadgerDB storage (AES-256 encrypted)
-    messaging/         NATS JetStream (pub/sub + P2P)
-    identity/          Ed25519 node identity (Age encrypted)
-    client/            Go client library
-    policy/            Policy engine (signers, limits, whitelist, FHE)
-    threshold/         ThresholdVM (policy enforcement in signing)
-    storage/           BadgerDB store + S3 backup client
-    eventconsumer/     Event processing
-  contracts/           ThresholdPolicy.sol (on-chain policy)
-  deploy/              compose.yml with full stack
-  e2e/                 End-to-end tests
+  cmd/mpcd/       Daemon — luxfi/mpc runtime + Hanzo defaults (dashboard :8081, /data/mpcd)
+  cmd/mpc/        CLI — peer/identity management
+  pkg/landing/    Host-based white-label brand resolution (mpc.hanzo.ai / .lux.network / .zoo.network)
+  examples/       Usage samples against github.com/luxfi/mpc/pkg/*
+  contracts/      ThresholdPolicy.sol (on-chain policy)
+  deploy/         compose.yml with full stack
+  deployments/    k8s manifests
+  e2e/            End-to-end tests
 ```
+
+The upstream version is pinned in `go.mod` (single source of truth). Bump it
+with `go get github.com/luxfi/mpc@vX.Y.Z` — never copy upstream packages in.
+CI builds + publishes `ghcr.io/hanzoai/mpc` on `v*` tags via the canonical
+reusable workflow (`.github/workflows/docker.yml`).
 
 ## Quick Start
 
