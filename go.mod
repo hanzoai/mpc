@@ -4,11 +4,13 @@ module github.com/hanzoai/mpc
 // All MPC logic (CGGMP21, FROST, ZapDB KV, NATS messaging, consensus
 // transport, HSM integration, settlement) lives in github.com/luxfi/mpc.
 // This module provides:
-//   - cmd/hanzo-mpc      : daemon with Hanzo defaults (port :8081, /data/hanzo-mpc)
-//   - cmd/hanzo-mpc-cli  : peer/identity management CLI
+//   - cmd/mpcd       : daemon with Hanzo defaults (dashboard :8081, /data/mpcd)
+//   - cmd/mpc        : peer/identity management CLI
+//   - pkg/landing    : host-based white-label brand resolution for the
+//                      landing/dashboard surface (mpc.hanzo.ai / .lux.network / ...)
 //
-// All packages from pkg/* have been removed in favor of the canonical
-// github.com/luxfi/mpc/pkg/* upstream.
+// All MPC pkg/* logic lives upstream in github.com/luxfi/mpc/pkg/*; this
+// repo carries only the Hanzo entrypoints + branding.
 
 go 1.26.3
 
