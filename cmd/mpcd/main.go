@@ -844,7 +844,7 @@ func (b *ConsensusMPCBackend) TriggerKeygen(orgID, walletID string) (*mpcapi.Key
 			WalletID:    result.WalletID,
 			ECDSAPubKey: hex.EncodeToString(result.ECDSAPubKey),
 			EDDSAPubKey: hex.EncodeToString(result.EDDSAPubKey),
-			EthAddress:  ethAddr,
+			EVMAddress:  ethAddr,
 			BtcAddress:  btcAddr,
 			SolAddress:  solAddr,
 		}, nil
