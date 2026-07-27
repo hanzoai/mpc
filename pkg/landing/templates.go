@@ -594,7 +594,7 @@ document.getElementById('token-text').textContent = token ? (token.substring(0, 
 async function loadUser() {
   if (!IAM_URL) return;
   try {
-    const resp = await fetch(IAM_URL + '/api/userinfo', { headers: { 'Authorization': 'Bearer ' + token } });
+    const resp = await fetch(IAM_URL + '/v1/iam/userinfo', { headers: { 'Authorization': 'Bearer ' + token } });
     if (resp.ok) {
       const user = await resp.json();
       document.getElementById('u-name').textContent = user.displayName || user.name || '—';
