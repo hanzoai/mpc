@@ -283,3 +283,19 @@ require (
 // the upstream agl/ed25519 module path was abandoned; luxfi maintains a
 // drop-in fork that both Lux and Hanzo MPC depend on.
 replace github.com/agl/ed25519 => github.com/luxfi/edwards25519 v0.1.0
+
+exclude github.com/hanzoai/ai v1.784.6-0.20260519070756-cc9de676a794
+
+exclude github.com/hanzoai/authz v1.10.1-0.20260519063807-aaf9ada8f4ac
+
+exclude github.com/hanzoai/commerce v1.42.5-0.20260519071034-dad3a0040537
+
+exclude github.com/hanzoai/gateway v1.1.4-0.20260519065324-526e56523337
+
+exclude github.com/hanzoai/iam/pkg/iam v0.0.0-20260519065317-bdfc4c6f0bad
+
+exclude github.com/hanzoai/ingress v1.7.42-0.20260519071101-f1d0e5466536
+
+exclude github.com/hanzoai/kms v1.0.8-0.20260519065320-67957b4a79cd
+
+exclude github.com/hanzoai/o11y v1.0.2-0.20260519065336-72a705a2917a
