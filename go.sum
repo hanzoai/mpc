@@ -998,8 +998,8 @@ github.com/luxfi/database v1.21.1 h1:GNnoWVa82l+n2dK7x2aG8LR2NEToq6ZCRX0sQjmK0OM
 github.com/luxfi/database v1.21.1/go.mod h1:Gc7Z2OPrrcYLnAL8B1trOnguXauOlSDV5tkviLN6Xec=
 github.com/luxfi/dkg v0.3.5 h1:s2L2mMQaz+n9m0b0ghvoV5VZNxiwb2z4WrGugvK0udY=
 github.com/luxfi/dkg v0.3.5/go.mod h1:M+WH7GFRN+YUD851Rlnumdp0Md98kplNN8pVx65U8I8=
-github.com/luxfi/edwards25519 v0.1.0 h1:YPoT831TZMslvNyy/KuTtpHi4BGZWgpwak06RCaYLzo=
-github.com/luxfi/edwards25519 v0.1.0/go.mod h1:MBoV+bPEz1tSMADPMSUaYdZ+agY3syG8B6z7RmJBH0A=
+github.com/luxfi/edwards25519 v0.1.0 h1:zuSrBtgV4NUiJ8dzzJiLU4o+A0AHGnztRLUvZ24mAYk=
+github.com/luxfi/edwards25519 v0.1.0/go.mod h1:tFuuyXvI+xqUoHz9pwC+kqsALCGHSO1SymL1NjCOmFM=
 github.com/luxfi/fhe v1.8.2 h1:QllnObNFbi6D4mvFI6uQkepW8HgLtdy4RMR1TKYAInA=
 github.com/luxfi/fhe v1.8.2/go.mod h1:16yxwhcnCez/rNcd/C9JjH9IjbEz73X+0tvlsONyLeA=
 github.com/luxfi/fhe v1.11.1 h1:fDTpXhWrqgtrmgvu/tOkDt4A5omJ6cU6u/wrRMBC6lc=
@@ -1042,7 +1042,6 @@ github.com/luxfi/mlwe v0.3.0 h1:5mtXLbO2RxaE45r75sj43c6UdpjDKQ5nTQcOGuoRQT8=
 github.com/luxfi/mlwe v0.3.0/go.mod h1:DD9EHTeiyh/y0KGGeqL+q9S4n8raeGiGdaG/BQPAvT0=
 github.com/luxfi/mock v0.1.1 h1:0HEtIjg1J6CWz+IUyP6rsGqNWTcmxjFnSQIhaDuARwY=
 github.com/luxfi/mock v0.1.1/go.mod h1:jo35akl3Vtd8LbzDts8VJ0jmSVycrd1/eBi6g6t5hKU=
-github.com/luxfi/mpc v1.14.13 h1:aceROE3HVZXWPfoJFDfhf/uzJ+PzHtzMal69+O513eY=
 github.com/luxfi/mpc v1.14.13/go.mod h1:P5BnYeYBdwYJRsA/ckFuSrBduEJnPmGeDJC+lkUepFo=
 github.com/luxfi/mpc v1.17.16-0.20260727175257-2fce62bdfed7 h1:U0j9T7OgE1XYSV6C2LMrO8tFgchSdy8Z3xr7gZQVRMU=
 github.com/luxfi/mpc v1.17.16-0.20260727175257-2fce62bdfed7/go.mod h1:DKT1At4UvkSvweCufe+wE8Rrr2MPEJhpIEWztZ2XeUY=
@@ -1065,7 +1064,6 @@ github.com/luxfi/threshold v1.12.5/go.mod h1:ddg3ipZ3WXozPn+TupPQPmNw/jGscmX13n9
 github.com/luxfi/utils v1.2.0 h1:gtEiI7/NM6PQ/OasEpH0PvB+e5hIS/tpum9r64pYjMc=
 github.com/luxfi/utils v1.2.0/go.mod h1:T2OCKT1xG9jtKR/gyJQoSkticzrE9WFQ8eohJHGu9Fg=
 github.com/luxfi/utils v1.3.1 h1:Us02ag60kGu94B41XIelExa7c+K6zPKwDJyq+eB+hc0=
-github.com/luxfi/zap v0.8.8 h1:B3R960OXA49XL3DQrhynv57JZivMii5sBClNdCVItwM=
 github.com/luxfi/zap v0.8.8/go.mod h1:JfqII8VtVQYLLTX6obU1DP9sjGqf9L24vfug5ifh0b8=
 github.com/luxfi/zap v1.2.6 h1:NBpbm9Gib41Oi/XAkAZKQ3hb+xCafo7JsrUjw+bKiAc=
 github.com/luxfi/zap v1.2.6/go.mod h1:sTAe/AMMamoE85cVoe81+NbqHJkgvqS0LhY9ByHEmr0=
