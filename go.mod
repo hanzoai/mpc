@@ -137,7 +137,6 @@ require (
 	github.com/hanzoai/tasks v1.52.0 // indirect
 	github.com/hanzoai/vfs v0.4.3 // indirect
 	github.com/hanzoai/xorm v1.4.4 // indirect
-	github.com/hanzoai/zip v0.2.0 // indirect
 	github.com/hanzokv/go/v9 v9.22.0 // indirect
 	github.com/hanzos3/go-sdk v1.0.2 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
