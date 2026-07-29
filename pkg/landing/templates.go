@@ -246,30 +246,9 @@ footer a:hover{color:#666;text-decoration:none}
 <section id="performance">
 <div class="container">
   <h2>Performance</h2>
-  <p class="section-sub">Real benchmarks on Apple M-series silicon. Signing is O(t) — independent of total party count. Keygen is O(n&sup2;) communication.</p>
-
-  <h3 style="color:#fff;font-size:16px;margin:32px 0 16px;font-weight:600">FROST Protocol — Full Execution (secp256k1)</h3>
-  <table class="perf">
-    <thead><tr><th>Operation</th><th>3 parties</th><th>10 parties</th><th>20 parties</th><th>30 parties</th><th>50 parties</th></tr></thead>
-    <tbody>
-      <tr><td class="op">Key Generation</td><td>22ms</td><td>38ms</td><td>332ms</td><td>535ms</td><td>1.9s</td></tr>
-      <tr><td class="op">Signing (t signers)</td><td>25ms</td><td>21ms</td><td>30ms</td><td>45ms</td><td>65ms</td></tr>
-      <tr><td class="op">Verification</td><td>2ms</td><td>2ms</td><td>2ms</td><td>2ms</td><td>2ms</td></tr>
-    </tbody>
-  </table>
-
-  <h3 style="color:#fff;font-size:16px;margin:32px 0 16px;font-weight:600">Cryptographic Primitives at Scale</h3>
-  <table class="perf">
-    <thead><tr><th>Operation</th><th>10</th><th>100</th><th>1,000</th><th>10,000</th></tr></thead>
-    <tbody>
-      <tr><td class="op">Scalar Multiplication</td><td>6.6ms</td><td>2.3ms</td><td>23ms</td><td>232ms</td></tr>
-      <tr><td class="op">Point Addition</td><td>&lt;0.01ms</td><td>0.1ms</td><td>1.1ms</td><td>11ms</td></tr>
-      <tr><td class="op">Lagrange Coefficients</td><td>0.1ms</td><td>10ms</td><td>1.3s</td><td>115s</td></tr>
-      <tr><td class="op">Polynomial Evaluation</td><td>&lt;0.01ms</td><td>1.6ms</td><td>166ms</td><td>16.7s</td></tr>
-      <tr><td class="op">Blake3 Hashing</td><td>&lt;0.01ms</td><td>0.03ms</td><td>0.4ms</td><td>3.4ms</td></tr>
-    </tbody>
-  </table>
-  <p style="color:#525252;font-size:13px;margin-top:16px">Signing uses only t threshold signers regardless of total n. A 10-of-10,000 scheme signs as fast as 10-of-10. Keygen/reshare touch all n parties — use tiered architecture at &gt;100 nodes.</p>
+  <p class="section-sub">Signing is O(t) — it uses only the t threshold signers, so a 10-of-10,000 scheme signs as fast as a 10-of-10. Keygen and reshare are O(n&sup2;) in communication and touch every party, which is why large deployments tier.</p>
+  <p class="section-sub">Those are properties of the protocol, and they hold without a table. Measured numbers are not published here yet: the figures this page used to show were never produced by any harness in this repository, and two rows ran backwards — scalar multiplication was listed faster at 100 items than at 10, and signing faster with 10 parties than with 3. Work does not get cheaper as it grows, so those were not measurements.</p>
+  <p style="color:#525252;font-size:13px;margin-top:16px">The repository has keygen benchmarks under e2e/. When they are run on a named machine and a named build, the results belong here with both.</p>
 </div>
 </section>
 
