@@ -1542,7 +1542,6 @@ github.com/luxfi/mpc v1.17.16-0.20260727175257-2fce62bdfed7/go.mod h1:DKT1At4Uvk
 github.com/luxfi/mpc v1.17.16 h1:HfP6edUkRvwknpiKl/zEUwaGSAkvbnBHL7MNWLGBM+Q=
 github.com/luxfi/mpc v1.17.16/go.mod h1:DKT1At4UvkSvweCufe+wE8Rrr2MPEJhpIEWztZ2XeUY=
 github.com/luxfi/p2p v1.22.1/go.mod h1:FHOSavVcq8JS1ZQtfddd9Jj1gaPstz1cjvNgczAQRyg=
-github.com/luxfi/pq v1.0.3 h1:pFlQm1+5FuKTDUh2y/23bXWkN4I2Rc5iuxJypwDFFMs=
 github.com/luxfi/pq v1.0.3/go.mod h1:8bppZcRElfrVt0n3nYCZW3iX1TvhvzNbdjNdK1irgIE=
 github.com/luxfi/pq v1.1.0 h1:ADplfUSyirLymSxs3Ix0HeDTyl5oswCNUpXJt/5vLY8=
 github.com/luxfi/pq v1.1.0/go.mod h1:KT5rG9ztpzIkT9QSnXK4WFqBBLzKCLjY7l1c/unBi8I=
