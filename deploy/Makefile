@@ -27,7 +27,7 @@ setup: dirs config
 dirs:
 	@mkdir -p config/mpc/node-{0,1,2}
 	@mkdir -p config/kms
-	@mkdir -p config/minio
+	@mkdir -p config/s3
 	@mkdir -p config/postgres
 	@mkdir -p config/prometheus
 	@mkdir -p config/grafana/dashboards
@@ -35,10 +35,10 @@ dirs:
 	@mkdir -p data/backups
 	@chmod -R 700 config/
 
-config: config/minio/backup-lifecycle.json config/postgres/init.sql config/prometheus/prometheus.yml
+config: config/s3/backup-lifecycle.json config/postgres/init.sql config/prometheus/prometheus.yml
 	@echo "Configuration files created."
 
-config/minio/backup-lifecycle.json:
+config/s3/backup-lifecycle.json:
 	@echo '{"Rules":[{"ID":"backup-expiration","Status":"Enabled","Expiration":{"Days":30},"Filter":{"Prefix":"backups/"}}]}' > $@
 
 config/postgres/init.sql:
@@ -187,8 +187,10 @@ restore:
 
 # List available backups in S3
 list-backups:
-	docker exec lux-minio mc ls myminio/mpc-backups --recursive
-	docker exec lux-minio mc ls myminio/kms-backups --recursive
+	docker compose -f $(COMPOSE_FILE) -p $(PROJECT_NAME) run --rm --entrypoint aws s3-init \
+		--endpoint-url http://s3:9000 s3 ls s3://mpc-backups --recursive
+	docker compose -f $(COMPOSE_FILE) -p $(PROJECT_NAME) run --rm --entrypoint aws s3-init \
+		--endpoint-url http://s3:9000 s3 ls s3://kms-backups --recursive
 
 # ============================================================
 # MAINTENANCE
@@ -263,7 +265,7 @@ health-check:
 	@curl -sf http://localhost:8080/health && echo "KMS: OK" || echo "KMS: FAIL"
 	@curl -sf http://localhost:4222 && echo "NATS: OK" || echo "NATS: FAIL"
 	@curl -sf http://localhost:8500/v1/status/leader && echo "Consul: OK" || echo "Consul: FAIL"
-	@curl -sf http://localhost:9000/minio/health/live && echo "MinIO: OK" || echo "MinIO: FAIL"
+	@curl -sf http://localhost:9000/healthz && echo "S3: OK" || echo "S3: FAIL"
 
 # ============================================================
 # HELP
