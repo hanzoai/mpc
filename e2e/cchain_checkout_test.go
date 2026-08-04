@@ -23,7 +23,7 @@ import (
 
 const (
 	// C-Chain RPC endpoint (local luxd)
-	cchainRPC = "http://localhost:9650/ext/bc/C/rpc"
+	cchainRPC = "http://localhost:9650/v1/bc/C/rpc"
 
 	// Test amounts
 	testAmountWei = 1000000000000000 // 0.001 LUX
