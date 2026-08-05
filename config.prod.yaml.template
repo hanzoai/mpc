@@ -20,11 +20,11 @@ api_port: 8080
 iam_endpoint: "https://id.lux.network"
 
 # HSM provider for key management
-# Production: use "kms" (kms.lux.network) or cloud HSM
+# Production: use "kms" (kms.lux.cloud) or cloud HSM
 hsm:
   provider: kms
   kms:
-    site_url: https://kms.lux.network
+    site_url: https://kms.lux.cloud
     client_id: ""      # Machine Identity client ID (env: HSM_KMS_CLIENT_ID)
     client_secret: ""  # Machine Identity client secret (env: HSM_KMS_CLIENT_SECRET)
     project_id: ""     # KMS project/workspace ID
