@@ -13,7 +13,7 @@ const HOST = "https://api.hanzo.ai"
  *  readers are logged out, so no bearer can ride the request — this write-only,
  *  bundle-safe key IS how anonymous pageviews and errors resolve to an org.
  *  Unset → events are best-effort and dropped at the edge. */
-const INGEST_KEY = process.env.NEXT_PUBLIC_EVENT_INGEST_KEY?.trim() || undefined
+const INGEST_KEY = process.env.NEXT_PUBLIC_PUBLISHABLE_KEY?.trim() || undefined
 
 /** Honor an explicit browser opt-out (Global Privacy Control, then legacy DNT).
  *  SSR (no navigator) defaults to consented; the browser reads the real signal on
