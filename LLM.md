@@ -146,7 +146,7 @@ abstract `infra.KV` interface. Three backends are available:
 | mpcd-{0,1,2} | 6000-6002 | MPC nodes (consensus validators) |
 | hanzo-kms | 8080 | Key management |
 | nats | 4222 | Message broker + consensus transport |
-| minio | 9000 | S3 backup storage |
+| s3 | 9000 | Hanzo S3 backup storage |
 
 ## Testing
 
