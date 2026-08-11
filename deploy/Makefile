@@ -27,7 +27,7 @@ setup: dirs config
 dirs:
 	@mkdir -p config/mpc/node-{0,1,2}
 	@mkdir -p config/kms
-	@mkdir -p config/minio
+	@mkdir -p config/s3
 	@mkdir -p config/postgres
 	@mkdir -p config/prometheus
 	@mkdir -p config/grafana/dashboards
@@ -35,11 +35,18 @@ dirs:
 	@mkdir -p data/backups
 	@chmod -R 700 config/
 
-config: config/minio/backup-lifecycle.json config/postgres/init.sql config/prometheus/prometheus.yml
+config: config/s3/s3.json config/postgres/init.sql config/prometheus/prometheus.yml
 	@echo "Configuration files created."
 
-config/minio/backup-lifecycle.json:
-	@echo '{"Rules":[{"ID":"backup-expiration","Status":"Enabled","Expiration":{"Days":30},"Filter":{"Prefix":"backups/"}}]}' > $@
+# Hanzo S3 identity config. Credentials come from the environment — export
+# S3_ACCESS_KEY and S3_SECRET_KEY (from KMS) before running. Bucket retention is
+# applied by the s3-init service in compose.yml.
+config/s3/s3.json:
+	@test -n "$$S3_ACCESS_KEY" || { echo "S3_ACCESS_KEY is not set"; exit 1; }
+	@test -n "$$S3_SECRET_KEY" || { echo "S3_SECRET_KEY is not set"; exit 1; }
+	@printf '{"identities":[{"name":"backup","credentials":[{"accessKey":"%s","secretKey":"%s"}],"actions":["Admin","Read","List","Tagging","Write"]}]}\n' \
+		"$$S3_ACCESS_KEY" "$$S3_SECRET_KEY" > $@
+	@chmod 600 $@
 
 config/postgres/init.sql:
 	@cat > $@ << 'EOF'
@@ -187,8 +194,8 @@ restore:
 
 # List available backups in S3
 list-backups:
-	docker exec lux-minio mc ls myminio/mpc-backups --recursive
-	docker exec lux-minio mc ls myminio/kms-backups --recursive
+	@printf '%s\n' 'fs.ls -l /buckets/mpc-backups' 'fs.ls -l /buckets/kms-backups' \
+		| docker exec -i lux-s3 s3 shell -master=localhost:9333
 
 # ============================================================
 # MAINTENANCE
@@ -263,7 +270,7 @@ health-check:
 	@curl -sf http://localhost:8080/health && echo "KMS: OK" || echo "KMS: FAIL"
 	@curl -sf http://localhost:4222 && echo "NATS: OK" || echo "NATS: FAIL"
 	@curl -sf http://localhost:8500/v1/status/leader && echo "Consul: OK" || echo "Consul: FAIL"
-	@curl -sf http://localhost:9000/minio/health/live && echo "MinIO: OK" || echo "MinIO: FAIL"
+	@curl -sf http://localhost:9333/cluster/healthz && echo "S3: OK" || echo "S3: FAIL"
 
 # ============================================================
 # HELP
