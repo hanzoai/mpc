@@ -120,7 +120,7 @@ services:
   # ============================================================
 
   lux-mpc-0:
-    image: ghcr.io/luxfi/mpc:latest
+    image: ghcr.io/luxfi/mpc:v1.17.25
     container_name: lux-mpc-0
     ports:
       - "6000:6000"
@@ -168,7 +168,7 @@ services:
           memory: 512M
 
   lux-mpc-1:
-    image: ghcr.io/luxfi/mpc:latest
+    image: ghcr.io/luxfi/mpc:v1.17.25
     container_name: lux-mpc-1
     ports:
       - "6001:6000"
@@ -216,7 +216,7 @@ services:
           memory: 512M
 
   lux-mpc-2:
-    image: ghcr.io/luxfi/mpc:latest
+    image: ghcr.io/luxfi/mpc:v1.17.25
     container_name: lux-mpc-2
     ports:
       - "6002:6000"
@@ -268,7 +268,7 @@ services:
   # ============================================================
 
   lux-kms:
-    image: ghcr.io/luxfi/kms:latest
+    image: ghcr.io/luxfi/kms:v1.12.13
     container_name: lux-kms
     ports:
       - "8080:8080"
