@@ -1185,7 +1185,7 @@ github.com/hanzo-ds/go v1.0.1/go.mod h1:CNQfHeWrtKwsiKqoX8quhGCvj2mp5JOB1ZHIhi+J
 github.com/hanzo-ds/native v0.71.0/go.mod h1:11FZtFdtfXMnmpybDEW6+uPRWFeC3TOT59YaV+lED+E=
 github.com/hanzoai/amqp v0.0.0-20260519063635-f1e6dddceabf/go.mod h1:XEzyJpCtnpBKj+uSWE5FTvhGQALVeDvdZ+cxsumtBBs=
 github.com/hanzoai/authzstore v0.1.1/go.mod h1:ZpiA4r7yoCC/4WO9CcsDezcYVVv40AmH8qoQSrBNtLo=
-github.com/hanzoai/base v1.3.0 h1:Av8qGdgAg3FbwwI28dnLUJTDf6nI9tTuX0nppn8Qzgg=
+github.com/hanzoai/base v1.3.0 h1:AI7uNS143M6Sex0XfexJt3eRipt+Fjgg1odoTHhD0dk=
 github.com/hanzoai/base v1.3.0/go.mod h1:Ts1+dD/b8DwL7Hd/83BdM8/Ftz+47ipTGgxDY7qppXs=
 github.com/hanzoai/base v1.5.8 h1:dbUHFjtC/2vxzdAfaaODDO2tDzgrC4ziHxx7+6zXqrc=
 github.com/hanzoai/base v1.5.8/go.mod h1:WZsIze+3kCEtZ8mukAYjzmo+rIsLAQ9UjjZRViBigZM=
