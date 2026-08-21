@@ -1,3 +1,9 @@
+> **Retired — use [luxfi/mpc](https://github.com/luxfi/mpc).**
+>
+> Nothing built here runs anywhere. The Hanzo ring pulls `ghcr.io/luxfi/mpc`
+> directly; this repo's own image sits at 0 replicas, labelled legacy. See
+> `DEPRECATED.md`.
+
 <p align="center"><img src=".github/hero.svg" alt="mpc" width="880"></p>
 
 <div class="title-block" style="text-align: center;" align="center">

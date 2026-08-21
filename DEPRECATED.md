@@ -3,17 +3,20 @@
 `hanzoai/mpc` is **deprecated**. The canonical Lux MPC implementation lives at:
 
 - **Code:** https://github.com/luxfi/mpc
-- **Image:** `ghcr.io/luxfi/mpc:v1.10.0` (latest semver)
+- **Image:** `ghcr.io/luxfi/mpc` (the Hanzo ring runs `v1.17.32`)
 - **Go module:** `github.com/luxfi/mpc`
 
-This repo is archived as `mpc-v1` for historical reference. All new
-development happens upstream in `luxfi/mpc`.
+All development happens upstream in `luxfi/mpc` — 860 commits there against
+111 here, and the 3-node Hanzo ring pulls that image directly.
+
+This repo is read-only. Earlier text here said it had been "archived as
+`mpc-v1`"; it had not been archived, and no `mpc-v1` repo was ever created.
 
 ## Migration
 
 | Old | New |
 |---|---|
-| `ghcr.io/hanzoai/mpc:*` | `ghcr.io/luxfi/mpc:v1.10.0` |
+| `ghcr.io/hanzoai/mpc:*` | `ghcr.io/luxfi/mpc` |
 | `github.com/hanzoai/mpc` (Go import) | `github.com/luxfi/mpc` |
 | `hanzo-mpc` binary | `mpcd` (daemon) |
 | `hanzo-mpc-cli` binary | `mpc` (CLI) |
