@@ -10,13 +10,24 @@ Threshold signing service. Pluggable signer backend for Hanzo KMS.
 - **LSS**: Dynamic resharing (change T-of-N without key reconstruction)
 - Threshold: default t = floor(n/2) + 1
 
-## Deployment status (2026-07-15) — GENUINE t-of-n threshold PROVEN
+## Deployment status — nothing here ships
 
-- **hanzo-mpc** (do-sfo3-hanzo-k8s, ns hanzo-mpc, 3 nodes): **ghcr.io/hanzoai/mpc:1.17.15**.
-  Sovereign image now WRAPS `ghcr.io/luxfi/mpc:v1.17.15` (luxfi/mpc is a private repo,
-  so the old source-build `git clone` fails in the ARC buildkit sandbox — zoo-style
-  image-wrap is the fix). The in-repo `cmd/mpcd` carries the same threshold fix for
-  local-dev parity but is not what ships.
+The ring in `ns hanzo-mpc` (do-sfo3-hanzo-k8s, 3 nodes) runs
+**`ghcr.io/luxfi/mpc`** straight from upstream, not an image built here.
+`charts/app/values/hanzo-mpc/node.yaml` in `hanzo/universe` is its declaration.
+
+This repo's own image is not running anywhere in any cluster. The one object
+that names it — `statefulset/hanzo-mpc` in `ns hanzo` — sits at **0 replicas**
+carrying `deprecated.hanzo.ai/status=legacy`, pinned to `1.2.9`.
+
+An earlier version of this file claimed `ghcr.io/hanzoai/mpc:1.17.15` was
+serving those 3 nodes. That tag returns 404 — it was never published. The
+wrapping Dockerfile was written and committed, but no build ever produced it;
+the newest tag that exists is `1.17.12`. The claim recorded an intention as if
+it were a fact, and the note below repeats the mistake for `v0.4.3`.
+
+The threshold work described next is real and was proven on the ring. Read it
+as cryptography, not as a description of what this repo deploys.
 - **CRITICAL fix live**: `--threshold` now sets the CGGMP21 keygen polynomial degree
   (was silently degree 0 = 1-of-n). Startup log confirms `keygenDegree=1 signersRequired=2`
   for hanzo's `--threshold=2` → **genuine 2-of-3** (degree = threshold-1). Pre-fix, every
@@ -185,7 +196,11 @@ make e2e-test        # End-to-end
 ### E2E Tests
 - Tests use `mpcd` from PATH -- run `go install ./cmd/mpcd && go install ./cmd/mpc` after code changes
 
-## Production Deployment (Feb 2026)
+## Production Deployment — superseded, kept for shape only
+
+Stale. `statefulset/mpcd` with `ghcr.io/hanzoai/mpc:v0.4.3` in `ns hanzo` is not
+what the cluster runs; see "Deployment status" above for what does. The port,
+peer and threshold shape below still describes how a ring is wired.
 
 ### Cluster: hanzo-k8s (do-sfo3)
 - **Namespace**: `hanzo`
