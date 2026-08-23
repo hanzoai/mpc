@@ -1,13 +1,16 @@
 @import "tailwindcss";
 @import "fumadocs-ui/style.css";
+/* Zen's two variable faces, self-hosted. Only the faces — the colour tokens
+   below are this site's own. */
+@import "@hanzo/design/tokens/fonts.css";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --breakpoint-3xl: 1600px;
   --breakpoint-4xl: 2000px;
-  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), monospace;
+  --font-sans: "Zen", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Zen Mono", ui-monospace, monospace;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);

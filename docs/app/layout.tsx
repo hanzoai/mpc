@@ -1,20 +1,7 @@
 import "./global.css"
 import { Analytics } from "./analytics"
 import { RootProvider } from "fumadocs-ui/provider/next"
-import { Inter } from "next/font/google"
 import type { ReactNode } from "react"
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-geist-sans",
-  display: "swap",
-})
-
-const interMono = Inter({
-  subsets: ["latin"],
-  variable: "--font-geist-mono",
-  display: "swap",
-})
 
 export const metadata = {
   title: {
@@ -38,12 +25,10 @@ export const metadata = {
 }
 
 export default function Layout({ children }: { children: ReactNode }) {
+  // No font loader. Zen ships inside @hanzo/design and global.css declares the
+  // faces, so there is no generated family name to bind here.
   return (
-    <html
-      lang="en"
-      className={`${inter.variable} ${interMono.variable}`}
-      suppressHydrationWarning
-    >
+    <html lang="en" suppressHydrationWarning>
       <body className="min-h-svh bg-background font-sans antialiased">
         <RootProvider
           search={{

@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@hanzo/event": "^0.3.1",
+    "@hanzo/design": "^0.5.18",
     "@hanzo/docs": "^16.2.0",
     "@hanzo/docs-core": "^16.2.0",
     "@hanzo/mdx": "^14.2.0",
