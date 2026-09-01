@@ -32,3 +32,21 @@ Single canonical implementation. One way to do everything. No parallel
 forks. The previous `hanzoai/mpc` was a thin wrapper that drifted from
 upstream over time — every wrapper API drift was a foot-gun. Using
 `luxfi/mpc` directly removes the drift class entirely.
+
+## Where MPC is going
+
+Lux is moving its decentralized MPC on-chain, onto the primary network.
+Three VMs are already registered in `luxfi/node` (`node/vms.go`): `mpcvm`
+— M-Chain, threshold signing and bridge custody — alongside `keyvm`
+(K-Chain, key management) and `identityvm` (I-Chain). That is where the
+protocol work lands.
+
+A daemon is the other shape: a node ring an operator runs, centralized by
+construction. The stated intent is that this centralized edition becomes
+Hanzo's and lives here.
+
+That has not happened, and this section is the direction rather than a
+description of this repository. What is true today is what the rest of
+this file already says: `pkg/mpc` holds a thin HTTP shim with no signing
+in it, the ring pulls `ghcr.io/luxfi/mpc`, and nothing built here is
+deployed anywhere. Delete this section when the code arrives, not before.
