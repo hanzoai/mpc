@@ -10,7 +10,7 @@ module github.com/hanzoai/mpc
 // All packages from pkg/* have been removed in favor of the canonical
 // github.com/luxfi/mpc/pkg/* upstream.
 
-go 1.26.4
+go 1.26.8
 
 require (
 	filippo.io/age v1.3.1
